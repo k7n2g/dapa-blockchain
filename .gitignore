@@ -1,0 +1,20 @@
+target/
+*.log
+mainnet/
+testnet/
+dev/
+peerlist-*/
+.vscode/
+wallets/
+peerlist-*.json
+build/
+
+# ignore all profiling files
+flamegraph.svg
+perf.data
+perf.data.old
+
+# ignore generated files by DAPA
+difficulty_dataset.csv
+precomputed_tables_*.bin
+mainnet*
