@@ -59,14 +59,14 @@ pub const DEV_FEES: [DevFeeThreshold; 2] = [
     // Activated for 3M blocks
     DevFeeThreshold {
         height: 0,
-        fee_percentage: 5
+        fee_percentage: 0
     },
     // Activated for the rest
     DevFeeThreshold {
         // after ~1.5 year it's reduced to 5%
         // 3 250 000 blocks * 15s of block time / 60s / 60m / 24h / 365d = 1.5 years
         height: 3_250_000, 
-        fee_percentage: 3
+        fee_percentage: 0
     }
 ];
 // only 30% of reward for side block
@@ -90,7 +90,7 @@ pub const EMISSION_SPEED_FACTOR: u64 = 24;
 
 // Developer address for paying dev fees until Smart Contracts integration
 // (testnet/mainnet format is converted lazily later)
-pub const DEV_ADDRESS: &str =  "dap:utcq5kj3yqf7n22s93wgay66mnectesvkze2xs303nmcpcaj0uhqq0sfl5j";
+pub const DEV_ADDRESS: &str =  "";
 
 // Chain sync config
 // minimum X seconds between each chain sync request per peer
