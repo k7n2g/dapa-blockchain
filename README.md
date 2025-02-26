@@ -1,34 +1,30 @@
 # DAPA
 
-DAPA is the world's first **BlockDAG** with **Privacy**, **Speed**, **Scalability** and **Smart Contracts**.
+DAPA is a  **BlockDAG** with **Privacy** as a Default, **Speed**, **Scalability** and **Smart Contracts** and a Payment system now in review.
 
 ## Features
 
 The main features of DAPA are the following:
-- **BlockDAG**: enabled to improve the scalability and the security of the network by reducing orphaned blocks rate.
-- **Egalitarian PoW**: Unique PoW algorithm built to allow any CPU or GPU to mine DAPA easily using [xelis-hash](https://github.com/xelis-project/xelis-hash).
+- **BlockDAG**: Enabled to improve the scalability and the security of the network by virtual elimination of the orphaned blocks rate.
+- **Egalitarian PoW**: Unique PoW algorithm built to allow any CPU or GPU to mine DAPA easily using the xelis h2[dapahe-hash](https://github.com/dapahe-project/dapahe-hash).
 - **Kalman Filter**: Difficulty adjustment algorithm using Kalman Filter to adjust the difficulty at each block instantly and smoothly to prevent any stuck-chain or dishonest miners mining at lower difficulty. 
-- **Privacy**: Homomorphic Encryption allows to have encrypted balances and encrypted transfered amounts.
-- **Smart Contracts**: allows to create unstoppable decentralized applications by deploying programs on the network, executed in our sandboxed environment [xelis-vm](https://github.com/xelis-project/xelis-vm).
-- **Confidential Asset**: Any asset deployed on DAPA network will have the same privacy and functionality like DAPA in any wallet.
+- **Privacy**: Homomorphic Encryption allows us to have encrypted balances and encrypted transfered amounts with total anonimity.
+- **Smart Contracts**: allows to create decentralized applications by deploying programs on the network, executed in a sandboxed environment [dapahe-vm](https://github.com/dapahe-project/dapahe-vm).
+- **Confidential Asset**: Any asset deployed on DAPA network will have the same privacy and functionality as DAPA in any wallet.
 - **Event system**: every event happening on the network (daemon or wallet) can be detected and notified easily.
 - **Instant Synchronization**: Your wallet balances and history is synced in few seconds. No need to sync the whole chain to use your wallet.
 - **Pruning Mode**: Reduce the blockchain size by deleting blocks, transactions and versioned balances.
-- **Smart Contracts**: Create and deploy unstoppable decentralized applications.
-- **Extra Data**: Send extra data in a transaction to transfer easily data to a wallet. This is secure and encrypted, readable only by the parties of a transaction.
+- **Smart Contracts**: Create and deploy any decentralized applications.
+- **Extra Data**: You can send extra data with a transaction to any wallet. This is secure and encrypted, readable only by the parties involved in a transaction.
 - **Integrated addresses**: Auto-integrate extra-data in a transaction when using an integrated address.
-- **Easy to use**: We aims to provide the most easiest platform to build and use daily.
+- **Easy to use**: We will try to provide the Easiest most Secure trading platform for daily use.
 
-For more, see the [full documentation](https://docs.xelis.io).
+For more, see the [full documentation](https://docs.dapahe.com).
 
 ## Networks
 
-For easy of use, we provide different built-in networks:
+For easy use, we provide different built-in networks:
 - Mainnet: Released April 20, 2024.
-- Testnet: Running
-- Devnet: this network is used for local development purpose where you want to create your own local chain. It has no peers
-
-You can switch between networks by using the `--network` option.
 By default, the network is set to `mainnet`.
 
 ## Acknowledgments
@@ -36,7 +32,7 @@ By default, the network is set to `mainnet`.
 [@cchudant](https://github.com/cchudant):
 - Optimized decoding RistrettoPoint implementation (ECDLP).
 - Twisted ElGamal implementation along ZK-Proofs integration for Confidential Transactions.
-- To read more, please see [DAPA-HE](https://github.com/xelis-project/xelis-he) framework created by him.
+- To read more, please see [DAPA-HE](https://github.com/dapahe-project/dapahe-he) framework created by him.
 
 [@deroholic](https://github.com/deroholic):
 - Difficulty adjustment algorithm using Kalman-Filter.
@@ -51,14 +47,14 @@ It's expected to be cross-platform and guaranteed to work on Linux, Windows, Mac
 
 ### Build from sub project
 
-Go to one of following folder you want to build from source: `xelis_daemon`, `xelis_miner` or `xelis_wallet`.
+Go to one of following folder you want to build from source: `dapahe_daemon`, `dapa_miner` or `dapa_wallet`.
 To build a release (optimized) version:
 `cargo build --release`
 
 ### Build from workspace
 
-To build a specific binary from workspace (parent folder) directly, use the option `--bin` with `xelis_daemon`, `xelis_miner` or `xelis_wallet` as value.
-Example: `cargo build --release --bin xelis_miner`
+To build a specific binary from workspace (parent folder) directly, use the option `--bin` with `dapahe_daemon`, `dapa_miner` or `dapa_wallet` as value.
+Example: `cargo build --release --bin dapa_miner`
 
 To build all at once just use `cargo build --release`
 
@@ -68,34 +64,28 @@ You can also build a debug version (just remove `--release` option) or run it di
 ### Build from Docker
 
 To build using Docker, use the following command, using the `app` build argument to chose which project to build:
-`docker build -t xelis-daemon:master --build-arg app=xelis_daemon .`
+`docker build -t dapahe-daemon:master --build-arg app=dapahe_daemon .`
 
 ## Funding
 
 DAPA is a community driven project and is not funded by any company or organization.
-To helps the development, the success and provide a better support of DAPA, we set a dev fee percentage starting at 10% on block reward.
-
-Current dev fee curve is as following:
-
-- 10% from block 0 to 3,250,000 (expected time is ~1.5 years with BlockDAG).
-- 5% from 3,250,001 until the project being developed is stable on major facets of the ecosystem in order to reduce it.
 
 ## Config
 
 ### Network
 
-- Expected Block Time is `15` seconds
-- Address prefix is `xel` on mainnet and `xet` for testnet/devnet
-- Transaction fee is based on various parameters (fee is `0.0001` XEL per KB, `0.001` XEL per account creation, `0.00005` XEL per transfer)
+- Expected Block Time is `15` seconds to 120 seconds.
+- Address prefix is `dap` on mainnet and `DAP` for testnet/devnet
+- Transaction fee is based on various parameters (fee is `0.0001` DAP per KB, `0.001` DAP per account creation, `0.00005` DAP per transfer)
 - Up to `8` decimals
-- Maximum supply: `18.4` millions
+- Maximum supply: `800` million.
 - Maximum block size: `1.25` MB
 - Difficulty adjustment algorithm: retarget at every block
 - Block reward emission: retarget at every block (Smooth decrease)
 
 ### Daemon
 
-- Default P2P port is `2125`
+- Default P2P port is `20100`
 - Defaut RPC Server port is `8080`
 
 ### Wallet
@@ -164,7 +154,7 @@ This is done so a block template can be generic and easily updatable for any min
 
 For pool development, you must verify that the miner public key in a received share is yours as it can be updated.
 
-All hashes are calculated using the `Blake3` hashing algorithm except the Proof-Of-Work hash, which use [xelis-hash](https://github.com/xelis-project/xelis-hash).
+All hashes are calculated using the `Blake3` hashing algorithm except the Proof-Of-Work hash, which use [dapahe-hash](https://github.com/DAPA/dapa-hash).
 
 POW Hash should be calculated from the `MinerWork` format and compared against the target difficulty.
 
@@ -542,12 +532,3 @@ Otherwise, an error like this will be sent and the connection will be closed by 
     "jsonrpc": "2.0"
 }
 ```
-#   d a p a - b l o c k c h a i n 
- 
- #   d a p a - b l o c k c h a i n 
- 
- #   d a p a - b l o c k c h a i n 
- 
- #   d a p a - b l o c k c h a i n 
- 
- 
