@@ -23,7 +23,6 @@ For more, see the [full documentation](https://docs.dapahe.com).
 
 ## Networks
 
-For easy use, we provide different built-in networks:
 - Mainnet: Released April 20, 2024.
 By default, the network is set to `mainnet`.
 
