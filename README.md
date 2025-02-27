@@ -23,7 +23,7 @@ For more, see the [full documentation](https://docs.dapahe.com).
 
 ## Networks
 
-For easy use, we provide different built-in networks:
+
 - Mainnet: Released April 20, 2024.
 By default, the network is set to `mainnet`.
 
@@ -32,12 +32,10 @@ By default, the network is set to `mainnet`.
 [@cchudant](https://github.com/cchudant):
 - Optimized decoding RistrettoPoint implementation (ECDLP).
 - Twisted ElGamal implementation along ZK-Proofs integration for Confidential Transactions.
-- To read more, please see [DAPA-HE](https://github.com/dapahe-project/dapahe-he) framework created by him.
+- To read more, please see [DAPA-HE](https://github.com/k7n2g/dapahe-he) framework created by him.
 
 [@deroholic](https://github.com/deroholic):
 - Difficulty adjustment algorithm using Kalman-Filter.
-
-Thank you to every people testing actively the code base, honest miners and every future contributors!
 
 ## How to build
 
@@ -47,13 +45,13 @@ It's expected to be cross-platform and guaranteed to work on Linux, Windows, Mac
 
 ### Build from sub project
 
-Go to one of following folder you want to build from source: `dapahe_daemon`, `dapa_miner` or `dapa_wallet`.
+Go to one of following folder you want to build from source: `dapa_daemon`, `dapa_miner` or `dapa_wallet`.
 To build a release (optimized) version:
 `cargo build --release`
 
 ### Build from workspace
 
-To build a specific binary from workspace (parent folder) directly, use the option `--bin` with `dapahe_daemon`, `dapa_miner` or `dapa_wallet` as value.
+To build a specific binary from workspace (parent folder) directly, use the option `--bin` with `dapa_daemon`, `dapa_miner` or `dapa_wallet` as value.
 Example: `cargo build --release --bin dapa_miner`
 
 To build all at once just use `cargo build --release`
@@ -64,18 +62,14 @@ You can also build a debug version (just remove `--release` option) or run it di
 ### Build from Docker
 
 To build using Docker, use the following command, using the `app` build argument to chose which project to build:
-`docker build -t dapahe-daemon:master --build-arg app=dapahe_daemon .`
-
-## Funding
-
-DAPA is a community driven project and is not funded by any company or organization.
+`docker build -t dapa-daemon:master --build-arg app=dapa_daemon .`
 
 ## Config
 
 ### Network
 
 - Expected Block Time is `15` seconds to 120 seconds.
-- Address prefix is `dap` on mainnet and `DAP` for testnet/devnet
+- Address prefix is `dap` on mainnet.
 - Transaction fee is based on various parameters (fee is `0.0001` DAP per KB, `0.001` DAP per account creation, `0.00005` DAP per transfer)
 - Up to `8` decimals
 - Maximum supply: `800` million.
@@ -90,7 +84,7 @@ DAPA is a community driven project and is not funded by any company or organizat
 
 ### Wallet
 
-- Default RPC Server port is `8081`
+- Default RPC Server port is `8082`
 
 ## BlockDAG
 
