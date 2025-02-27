@@ -1,16 +1,16 @@
-# XELIS
+# DAPA
 
-XELIS is the world's first **BlockDAG** with **Privacy**, **Speed**, **Scalability** and **Smart Contracts**.
+DAPA is the world's first **BlockDAG** with **Privacy**, **Speed**, **Scalability** and **Smart Contracts**.
 
 ## Features
 
-The main features of XELIS are the following:
+The main features of DAPA are the following:
 - **BlockDAG**: enabled to improve the scalability and the security of the network by reducing orphaned blocks rate.
-- **Egalitarian PoW**: Unique PoW algorithm built to allow any CPU or GPU to mine XELIS easily using [xelis-hash](https://github.com/xelis-project/xelis-hash).
+- **Egalitarian PoW**: Unique PoW algorithm built to allow any CPU or GPU to mine DAPA easily using [xelis-hash](https://github.com/xelis-project/xelis-hash).
 - **Kalman Filter**: Difficulty adjustment algorithm using Kalman Filter to adjust the difficulty at each block instantly and smoothly to prevent any stuck-chain or dishonest miners mining at lower difficulty. 
 - **Privacy**: Homomorphic Encryption allows to have encrypted balances and encrypted transfered amounts.
 - **Smart Contracts**: allows to create unstoppable decentralized applications by deploying programs on the network, executed in our sandboxed environment [xelis-vm](https://github.com/xelis-project/xelis-vm).
-- **Confidential Asset**: Any asset deployed on XELIS network will have the same privacy and functionality like XELIS in any wallet.
+- **Confidential Asset**: Any asset deployed on DAPA network will have the same privacy and functionality like DAPA in any wallet.
 - **Event system**: every event happening on the network (daemon or wallet) can be detected and notified easily.
 - **Instant Synchronization**: Your wallet balances and history is synced in few seconds. No need to sync the whole chain to use your wallet.
 - **Pruning Mode**: Reduce the blockchain size by deleting blocks, transactions and versioned balances.
@@ -36,7 +36,7 @@ By default, the network is set to `mainnet`.
 [@cchudant](https://github.com/cchudant):
 - Optimized decoding RistrettoPoint implementation (ECDLP).
 - Twisted ElGamal implementation along ZK-Proofs integration for Confidential Transactions.
-- To read more, please see [XELIS-HE](https://github.com/xelis-project/xelis-he) framework created by him.
+- To read more, please see [DAPA-HE](https://github.com/xelis-project/xelis-he) framework created by him.
 
 [@deroholic](https://github.com/deroholic):
 - Difficulty adjustment algorithm using Kalman-Filter.
@@ -72,8 +72,8 @@ To build using Docker, use the following command, using the `app` build argument
 
 ## Funding
 
-XELIS is a community driven project and is not funded by any company or organization.
-To helps the development, the success and provide a better support of XELIS, we set a dev fee percentage starting at 10% on block reward.
+DAPA is a community driven project and is not funded by any company or organization.
+To helps the development, the success and provide a better support of DAPA, we set a dev fee percentage starting at 10% on block reward.
 
 Current dev fee curve is as following:
 
@@ -104,7 +104,7 @@ Current dev fee curve is as following:
 
 ## BlockDAG
 
-XELIS use a blockDAG with following rules:
+DAPA use a blockDAG with following rules:
 - A block is considered `Sync Block` when the block height is less than `TOP_HEIGHT - STABLE_LIMIT` and it's the unique block at a specific height (or only ordered block at its height and don't have lower cumulative difficulty than previous blocks).
 - A block is considered `Side Block` when block height is less than or equal to height of past 8 topological blocks.
 - A block is considered `Orphaned` when the block is not ordered in DAG (no topological height for it).
@@ -140,7 +140,7 @@ Each balances, transaction assets values are in encrypted form and nobody can de
 
 ## Mining
 
-Mining capabilities of XELIS are a bit differents from others chains because of standards being not implemented.
+Mining capabilities of DAPA are a bit differents from others chains because of standards being not implemented.
 Each job send to a miner is a `MinerWork` instance in hex format.
 
 The `MinerWork` is in following format:
@@ -175,7 +175,7 @@ Miners software are recommended to update themselves the block timestamp (or at 
 
 ## Client Protocol
 
-XELIS integrate along with BlockDAG a way to accept multiple times the same TX and only execute it one time.
+DAPA integrate along with BlockDAG a way to accept multiple times the same TX and only execute it one time.
 Instead of excluding the whole block because we have a collision with another blockDAG branch for a TX, we just don't execute the TX and keep its hash.
 
 The same TX can be contained in multiple blocks only if:
@@ -272,7 +272,7 @@ This is the perfect mix between Fast sync and traditional chain sync, to have th
 
 ### Packets
 
-This parts explains the most importants packets used in XELIS network to communicate over the P2p network.
+This parts explains the most importants packets used in DAPA network to communicate over the P2p network.
 
 #### Key Exchange
 
@@ -493,7 +493,7 @@ Events availables to subscribe on the wallet API are:
 
 ### XSWD
 
-XSWD (XELIS Secure WebSocket DApp) Protocol is a WebSocket started on unique port `44325` and path `/xswd` for easy findings from dApps.
+XSWD (DAPA Secure WebSocket DApp) Protocol is a WebSocket started on unique port `44325` and path `/xswd` for easy findings from dApps.
 Its job is to provide an easy to access and secure way to communicate from a desktop/CLI wallet to any dApp (software or in-browser/websites directly).
 
 It's based on the JSON-RPC API and have exact same methods for easy compabitility, the only exception is how verification is done.
@@ -513,9 +513,9 @@ First JSON message from the dApp must be in following format to identify the app
 ```json
 {
     "id": "0000006b2aec4651b82111816ed599d1b72176c425128c66b2ab945552437dc9",
-    "name": "XELIS Example",
+    "name": "DAPA Example",
     "description": "Description example of up to 255 characters",
-    "url": "https://xelis.io",
+    "url": "https://dapahe.com",
     "permissions": {}
 }
 ```

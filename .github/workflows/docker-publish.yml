@@ -42,7 +42,7 @@ jobs:
       - name: Retrieve version from Cargo.toml
         run: |
           VERSION=`awk -F ' = ' '$1 ~ /version/ { gsub(/[\\"]/, "", $2); printf("%s",$2) }' xelis_${{ matrix.app }}/Cargo.toml`
-          echo "XELIS_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "DAPA_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       - name: Extract Docker metadata
         id: meta
@@ -52,7 +52,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=Xelis ${{ matrix.app }}
           tags: |
-            type=schedule,pattern=${{ env.XELIS_VERSION }}-nightly-{{date 'YYYYMMDD'}}
+            type=schedule,pattern=${{ env.DAPA_VERSION }}-nightly-{{date 'YYYYMMDD'}}
             type=semver,pattern={{version}},event=tag
             type=ref,event=pr
 

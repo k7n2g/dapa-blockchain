@@ -3341,7 +3341,7 @@ Split address and integrated data in two differents fields.
                 "Hello",
                 "World",
                 "from",
-                "XELIS"
+                "DAPA"
             ]
         }
     }
@@ -3418,7 +3418,7 @@ It is not mandatory and support any data formatted in JSON up to 1 KB in seriali
                 "Hello",
                 "World",
                 "from",
-                "XELIS"
+                "DAPA"
             ]
         }
     }
@@ -4312,7 +4312,7 @@ Get all assets available on network with its registered topoheight and necessary
             "contract": null,
             "decimals": 8,
             "max_supply": 1840000000000000,
-            "name": "XELIS"
+            "name": "DAPA"
         }
     }
 }
@@ -8539,7 +8539,7 @@ Fetch transactions by theirs hashes from database and mempool of daemon and keep
 #### Get Account History
 Fetch up to 20 history events for an account on a specific asset.
 
-NOTE: If no asset is provided, default is set to XELIS.
+NOTE: If no asset is provided, default is set to DAPA.
 
 ##### Method `get_account_history`
 
@@ -9840,7 +9840,7 @@ It is not mandatory and support any data formatted in JSON up to 1 KB in seriali
                 "Hello",
                 "World",
                 "from",
-                "XELIS"
+                "DAPA"
             ],
             "items": {
                 "sword": 5
@@ -9897,7 +9897,7 @@ Split address and integrated data in two differents fields.
                 "Hello",
                 "World",
                 "from",
-                "XELIS"
+                "DAPA"
             ]
         }
     }
@@ -9940,7 +9940,7 @@ When no topoheight is set, it rescan until topoheight 0.
 
 #### Get Balance
 Get asset balance from wallet.
-When no parameter is set, default asset is XELIS.
+When no parameter is set, default asset is DAPA.
 
 NOTE: By default, if no balance for the requested asset is found, it will returns 0.
 Use `has_balance` to determine if the wallet as an asset balance or not.
@@ -9976,7 +9976,7 @@ Balance is returned in atomic units.
 
 #### Has Balance
 Verify if wallet has the requested asset balance.
-When no parameter is set, default asset is XELIS.
+When no parameter is set, default asset is DAPA.
 
 ##### Method `has_balance`
 
@@ -10116,7 +10116,7 @@ Get transaction by hash from wallet.
 Build a transaction to be send by the wallet.
 It can be broadcasted or not to the network.
 
-**NOTE**: Amount set are in atomic units, for XELIS it would be `100000000` to represents 1 XELIS because of 8 decimals precision.
+**NOTE**: Amount set are in atomic units, for DAPA it would be `100000000` to represents 1 DAPA because of 8 decimals precision.
 
 ##### Method `build_transaction`
 
@@ -10233,7 +10233,7 @@ where `id` is the index of the signer in the multisig setup.
 Build a transaction offline in the wallet by providing directly exact balances and reference.
 It cannot be broadcasted by the wallet directly.
 
-**NOTE**: Amount set are in atomic units, for XELIS it would be `100000000` to represents 1 XELIS because of 8 decimals precision.
+**NOTE**: Amount set are in atomic units, for DAPA it would be `100000000` to represents 1 DAPA because of 8 decimals precision.
 
 ##### Method `build_transaction_offline`
 
@@ -10882,7 +10882,7 @@ Please note that the value returned is in atomic units.
 
 ### Storage
 
-XELIS Wallet has the ability to have a built-in encrypted DB that can be used to store / fetch entries easily.
+DAPA Wallet has the ability to have a built-in encrypted DB that can be used to store / fetch entries easily.
 This can be really helpful for small services / applications that don't want to setup a whole database system.
 
 It is a key / value DB with support of multiples Trees, everything is stored in encrypted form on the disk.

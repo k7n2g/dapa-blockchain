@@ -2,10 +2,10 @@
 resolver = "2"
 
 members = [
-    "xelis_common",
-    "xelis_wallet",
-    "xelis_miner",
-    "xelis_daemon"
+    "dapa_common",
+    "dapa_wallet",
+    "dapa_miner",
+    "dapa_daemon"
 ]
 
 # cargo run --profile release-with-lto

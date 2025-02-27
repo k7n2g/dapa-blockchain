@@ -342,7 +342,7 @@ Wallet:
 
 ## v1.9.0
 
-XELIS mainnet release
+DAPA mainnet release
 
 Daemon:
 - POW `xelis-hash` algorithm released
@@ -352,7 +352,7 @@ Daemon:
 
 ## v1.8.0
 
-- XELIS HE implementation
+- DAPA HE implementation
 - Fully Encrypted P2p Network
 
 Several bug fixes and new RPC methods
