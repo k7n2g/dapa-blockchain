@@ -2,7 +2,7 @@ use core::fmt;
 use std::any::TypeId;
 
 use anyhow::Context as AnyhowContext;
-use xelis_vm::{
+use dapa_vm::{
     traits::{JSONHelper, Serializable},
     Context,
     FnInstance,

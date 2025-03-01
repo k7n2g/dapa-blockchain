@@ -1,7 +1,7 @@
 use std::any::TypeId;
 use anyhow::Context as AnyhowContext;
 use xelis_builder::ConstFnParams;
-use xelis_vm::{traits::Serializable, Constant, Context, FnInstance, FnParams, FnReturnType, Opaque, OpaqueWrapper, Value, ValueCell};
+use dapa_vm::{traits::Serializable, Constant, Context, FnInstance, FnParams, FnReturnType, Opaque, OpaqueWrapper, Value, ValueCell};
 use crate::crypto::Hash;
 
 use super::{Serializer, Writer, HASH_OPAQUE_ID};

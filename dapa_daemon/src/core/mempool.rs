@@ -26,7 +26,7 @@ use dapa_common::{
     time::{get_current_time_in_seconds, TimestampSeconds},
     transaction::{Transaction, MultiSigPayload}
 };
-use xelis_vm::Environment;
+use dapa_vm::Environment;
 
 // Wrap a TX with its hash and size in bytes for faster access
 // size of tx can be heavy to compute, so we store it here

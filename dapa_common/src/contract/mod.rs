@@ -11,7 +11,7 @@ use indexmap::IndexMap;
 use log::{debug, info};
 use opaque::*;
 use xelis_builder::EnvironmentBuilder;
-use xelis_vm::{
+use dapa_vm::{
     Constant,
     Context,
     FnInstance,

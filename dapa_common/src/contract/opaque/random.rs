@@ -1,7 +1,7 @@
 use std::any::TypeId;
 
 use anyhow::{bail, Context as AnyhowContext};
-use xelis_vm::{
+use dapa_vm::{
     traits::{JSONHelper, Serializable},
     Context,
     FnInstance,

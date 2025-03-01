@@ -10,7 +10,7 @@ use xelis_types::{
     register_opaque_json,
     impl_opaque_json
 };
-use xelis_vm::{tid, OpaqueWrapper};
+use dapa_vm::{tid, OpaqueWrapper};
 use crate::{
     block::Block,
     crypto::{Address, Hash},

@@ -31,7 +31,7 @@ use dapa_common::{
     versioned_type::VersionedState,
 };
 use xelis_environment::Environment;
-use xelis_vm::Module;
+use dapa_vm::Module;
 use crate::core::{
     error::BlockchainError,
     storage::Storage

@@ -4,7 +4,7 @@ use anyhow::Context;
 use compressed::{decompress_constant, decompress_type};
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
-use xelis_vm::{
+use dapa_vm::{
     Chunk,
     Constant,
     ConstantWrapper,

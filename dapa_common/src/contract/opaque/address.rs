@@ -1,6 +1,6 @@
 use std::any::TypeId;
 use xelis_builder::ConstFnParams;
-use xelis_vm::{traits::Serializable, Constant, Context, FnInstance, FnParams, FnReturnType, Opaque, OpaqueWrapper, Value, ValueCell};
+use dapa_vm::{traits::Serializable, Constant, Context, FnInstance, FnParams, FnReturnType, Opaque, OpaqueWrapper, Value, ValueCell};
 use crate::crypto::Address;
 
 use super::{Serializer, Writer, ADDRESS_OPAQUE_ID};

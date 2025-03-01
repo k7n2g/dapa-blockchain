@@ -1,6 +1,6 @@
 use log::trace;
 use dapa_common::{block::TopoHeight, contract::{ContractProvider, ContractStorage}, crypto::Hash};
-use xelis_vm::Constant;
+use dapa_vm::Constant;
 use crate::core::storage::{ContractBalanceProvider, ContractDataProvider, SledStorage};
 
 impl ContractStorage for SledStorage {

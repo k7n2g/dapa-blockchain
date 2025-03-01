@@ -1,6 +1,6 @@
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
-use xelis_vm::Constant;
+use dapa_vm::Constant;
 use crate::{
     api::DataElement,
     crypto::{Address, Hash}
@@ -42,7 +42,7 @@ pub struct InvokeContractBuilder {
 mod tests {
     use indexmap::indexmap;
     use serde_json::json;
-    use xelis_vm::Value;
+    use dapa_vm::Value;
     use crate::{config::DAPA_ASSET, serializer::Serializer};
 
     use super::*;

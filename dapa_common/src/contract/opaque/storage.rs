@@ -1,6 +1,6 @@
 use std::any::TypeId;
 use anyhow::bail;
-use xelis_vm::{
+use dapa_vm::{
     traits::{JSONHelper, Serializable},
     Constant,
     Context,

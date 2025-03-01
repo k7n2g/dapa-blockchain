@@ -14,7 +14,7 @@ pub use unsigned::UnsignedTransaction;
 use bulletproofs::RangeProof;
 use curve25519_dalek::Scalar;
 use serde::{Deserialize, Serialize};
-use xelis_vm::Module;
+use dapa_vm::Module;
 use std::{
     collections::HashSet,
     iter,

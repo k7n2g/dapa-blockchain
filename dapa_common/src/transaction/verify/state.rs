@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-use xelis_vm::{Environment, Module};
+use dapa_vm::{Environment, Module};
 use crate::{
     account::Nonce,
     block::{Block, BlockVersion},

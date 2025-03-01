@@ -1,4 +1,4 @@
-use xelis_vm::Module;
+use dapa_vm::Module;
 
 use crate::serializer::*;
 

@@ -16,7 +16,7 @@ use dapa_common::{
     }
 };
 use xelis_environment::Environment;
-use xelis_vm::Module;
+use dapa_vm::Module;
 use crate::core::{
     error::BlockchainError,
     mempool::Mempool,

@@ -1,7 +1,7 @@
 use std::{any::TypeId, fmt};
 
 use anyhow::{bail, Context as AnyhowContext};
-use xelis_vm::{traits::{JSONHelper, Serializable}, Context, FnInstance, FnParams, FnReturnType, Opaque, OpaqueWrapper, Value};
+use dapa_vm::{traits::{JSONHelper, Serializable}, Context, FnInstance, FnParams, FnReturnType, Opaque, OpaqueWrapper, Value};
 use crate::{contract::ChainState, transaction::Transaction};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

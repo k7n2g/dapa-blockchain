@@ -13,7 +13,7 @@ use dapa_common::{
     serializer::Serializer,
     versioned_type::Versioned
 };
-use xelis_vm::Module;
+use dapa_vm::Module;
 use crate::core::{
     error::{BlockchainError, DiskContext},
     storage::{SledStorage, CONTRACTS_COUNT}

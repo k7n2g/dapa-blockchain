@@ -11,7 +11,7 @@ use serde::{
     Deserializer,
     de::Error
 };
-use xelis_vm::Constant;
+use dapa_vm::Constant;
 use crate::{
     account::{Nonce, CiphertextCache, VersionedBalance, VersionedNonce},
     block::{TopoHeight, Algorithm, BlockVersion, EXTRA_NONCE_SIZE},

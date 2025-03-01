@@ -6,7 +6,7 @@ use dapa_common::{
     serializer::Serializer,
     versioned_type::Versioned,
 };
-use xelis_vm::Constant;
+use dapa_vm::Constant;
 use crate::core::{
     error::{BlockchainError, DiskContext},
     storage::SledStorage

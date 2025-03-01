@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::HashMap};
 use async_trait::async_trait;
 use indexmap::IndexSet;
-use xelis_vm::{Environment, Module};
+use dapa_vm::{Environment, Module};
 use crate::{
     account::{Nonce, CiphertextCache},
     api::{DataElement, DataValue},

@@ -17,7 +17,7 @@ use dapa_common::{
         Reference
     }
 };
-use xelis_vm::Environment;
+use dapa_vm::Environment;
 use crate::core::{
     error::BlockchainError,
     storage::{Storage, VersionedContract, VersionedContractBalance, VersionedContractData, VersionedMultiSig}
@@ -117,7 +117,7 @@ impl<'a, S: Storage> BlockchainVerificationState<'a, BlockchainError> for Applic
     async fn set_contract_module(
         &mut self,
         hash: &'a Hash,
-        module: &'a xelis_vm::Module
+        module: &'a dapa_vm::Module
     ) -> Result<(), BlockchainError> {
         self.inner.set_contract_module(hash, module).await
     }
@@ -132,7 +132,7 @@ impl<'a, S: Storage> BlockchainVerificationState<'a, BlockchainError> for Applic
     async fn get_contract_module_with_environment(
         &self,
         hash: &'a Hash
-    ) -> Result<(&xelis_vm::Module, &Environment), BlockchainError> {
+    ) -> Result<(&dapa_vm::Module, &Environment), BlockchainError> {
         self.inner.get_contract_module_with_environment(hash).await
     }
 }

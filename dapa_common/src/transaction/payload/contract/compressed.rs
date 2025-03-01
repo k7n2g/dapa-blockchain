@@ -1,7 +1,7 @@
 use anyhow::Context;
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
-use xelis_vm::{Constant, EnumType, EnumValueType, StructType, Type, TypeId, Value};
+use dapa_vm::{Constant, EnumType, EnumValueType, StructType, Type, TypeId, Value};
 
 use crate::serializer::{Reader, ReaderError, Serializer, Writer};
 
@@ -293,7 +293,7 @@ pub fn decompress_type(reader: &mut Reader, structures: &IndexSet<StructType>, e
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xelis_vm::{EnumVariant, Type};
+    use dapa_vm::{EnumVariant, Type};
 
     fn test_serde_value(value: Constant) {
         let bytes = value.to_bytes();

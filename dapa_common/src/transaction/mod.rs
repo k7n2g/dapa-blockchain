@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use xelis_vm::Module;
+use dapa_vm::Module;
 use crate::{
     account::Nonce,
     crypto::{

@@ -12,7 +12,7 @@ use curve25519_dalek::{
 };
 use log::{debug, trace};
 use merlin::Transcript;
-use xelis_vm::{ConstantWrapper, ModuleValidator, VM};
+use dapa_vm::{ConstantWrapper, ModuleValidator, VM};
 use crate::{
     account::Nonce,
     config::{BURN_PER_CONTRACT, TRANSACTION_FEE_BURN_PERCENT, DAPA_ASSET},

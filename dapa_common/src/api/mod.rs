@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use bulletproofs::RangeProof;
-use xelis_vm::Module;
+use dapa_vm::Module;
 use crate::{
     account::Nonce,
     crypto::{

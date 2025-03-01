@@ -1,4 +1,4 @@
-use xelis_vm::tid;
+use dapa_vm::tid;
 
 use crate::{block::TopoHeight, crypto::Hash};
 
