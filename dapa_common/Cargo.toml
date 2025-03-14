@@ -22,8 +22,8 @@ sha3 = "0.10.8"
 chacha20poly1305 = "0.10.1"
 xelis-hash = { git = "https://github.com/xelis-project/xelis-hash", branch = "master" }
 xelis-vm = { git = "https://github.com/k7n2g/xelis-vm", branch = "main" }
-xelis-types = { git = "https://github.com/k7n2g/xelis-vm", branch = "dev" }
-xelis-builder = { git = "https://github.com/k7n2g/xelis-vm", branch = "dev" }
+xelis-types = { git = "https://github.com/k7n2g/xelis-vm", branch = "main" }
+xelis-builder = { git = "https://github.com/k7n2g/xelis-vm", branch = "main" }
 thiserror = "1"
 anyhow = "1"
 log = "0.4"
