@@ -1,6 +1,6 @@
 # DAPA
 
-DAPA is the world's first **BlockDAG** with **Privacy**, **Speed**, **Scalability** and **Smart Contracts**.
+DAPA Advanced Homomorphic Encrypted Blochain  **BlockDAG** with **Privacy**, **Speed**, **Scalability** and **Smart Contracts**.
 
 ## Features
 
