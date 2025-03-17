@@ -51,13 +51,13 @@ It's expected to be cross-platform and guaranteed to work on Linux, Windows, Mac
 
 ### Build from sub project
 
-Go to one of following folder you want to build from source: `xelis_daemon`, `dapa_miner` or `dapa_wallet`.
+Go to one of following folder you want to build from source: `dapa_daemon`, `dapa_miner` or `dapa_wallet`.
 To build a release (optimized) version:
 `cargo build --release`
 
 ### Build from workspace
 
-To build a specific binary from workspace (parent folder) directly, use the option `--bin` with `xelis_daemon`, `dapa_miner` or `dapa_wallet` as value.
+To build a specific binary from workspace (parent folder) directly, use the option `--bin` with `dapa_daemon`, `dapa_miner` or `dapa_wallet` as value.
 Example: `cargo build --release --bin dapa_miner`
 
 To build all at once just use `cargo build --release`
@@ -68,35 +68,29 @@ You can also build a debug version (just remove `--release` option) or run it di
 ### Build from Docker
 
 To build using Docker, use the following command, using the `app` build argument to chose which project to build:
-`docker build -t xelis-daemon:master --build-arg app=xelis_daemon .`
+`docker build -t dapa-daemon:master --build-arg app=dapa_daemon .`
 
 ## Funding
 
-DAPA is a community driven project and is not funded by any company or organization.
-To helps the development, the success and provide a better support of DAPA, we set a dev fee percentage starting at 10% on block reward.
-
-Current dev fee curve is as following:
-
-- 10% from block 0 to 3,250,000 (expected time is ~1.5 years with BlockDAG).
-- 5% from 3,250,001 until the project being developed is stable on major facets of the ecosystem in order to reduce it.
+DAPA is from coin sales and investments.
 
 ## Config
 
 ### Network
 
 - Expected Block Time is `15` seconds
-- Address prefix is `xel` on mainnet and `xet` for testnet/devnet
-- Transaction fee is based on various parameters (fee is `0.0001` XEL per KB, `0.001` XEL per account creation, `0.00005` XEL per transfer)
+- Address prefix is `dap` on mainnet and `xel` for testnet/devnet
+- Transaction fee is based on various parameters (fee is `0.0001` DAPA per KB, `0.001` DAPA per account creation, `0.00005` DAPA per transfer)
 - Up to `8` decimals
-- Maximum supply: `18.4` millions
+- Maximum supply: `800` million to facilitate Payment options
 - Maximum block size: `1.25` MB
 - Difficulty adjustment algorithm: retarget at every block
 - Block reward emission: retarget at every block (Smooth decrease)
 
 ### Daemon
 
-- Default P2P port is `2125`
-- Defaut RPC Server port is `8080`
+- Default P2P port is `20100`
+- Defaut RPC Server port is `20101`
 
 ### Wallet
 
@@ -515,7 +509,7 @@ First JSON message from the dApp must be in following format to identify the app
     "id": "0000006b2aec4651b82111816ed599d1b72176c425128c66b2ab945552437dc9",
     "name": "DAPA Example",
     "description": "Description example of up to 255 characters",
-    "url": "https://xelis.io",
+    "url": "https://dapahe.com",
     "permissions": {}
 }
 ```
