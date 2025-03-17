@@ -1,4 +1,4 @@
-# DAPA
+# DAPA Code Base From XELIS SLIXE as Developer with many thanks.
 
 DAPA Advanced Homomorphic Encrypted Blochain  **BlockDAG** with **Privacy**, **Speed**, **Scalability** and **Smart Contracts**.
 
@@ -542,7 +542,10 @@ Otherwise, an error like this will be sent and the connection will be closed by 
     "jsonrpc": "2.0"
 }
 ```
-#   d a p a - b l o c k c h a i n  
- #   d a p a - b l o c k c h a i n  
- #   d a p a - b l o c k c h a i n  
+#   d a p a - b l o c k c h a i n 
+ 
+ #   d a p a - b l o c k c h a i n 
+ 
+ #   d a p a - b l o c k c h a i n 
+ 
  
