@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "dapa_common",
+    "dapa_wallet",
+    "dapa_miner",
+    "dapa_daemon"
+]
+
+# cargo run --profile release-with-lto
+[profile.release-with-lto]
+inherits = "release"
+opt-level = 3
+debug-assertions = false
+overflow-checks = false
+lto = true
