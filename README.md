@@ -1,15 +1,15 @@
 # DAPA
 
-DAPA is an Advanced Blockchain with **BlockDAG** **Privacy**, **Speed**, **Scalability** and **Smart Contracts**.
+DAPA is an Advanced Blockchain with **BlockDAG**  **Privacy**, **Speed**, **Scalability** and **Smart Contracts** as default.
 
 ## Features
 
 The main features of DAPA are the following:
 - **BlockDAG**: enabled to improve the scalability and the security of the network by reducing orphaned blocks rate.
-- **Egalitarian PoW**: Unique PoW algorithm built to allow any CPU or GPU to mine DAPA easily using [xelis-hash](https://github.com/k7n2g/dapa-hash).
+- **Egalitarian PoW**: Unique PoW algorithm built to allow any CPU or GPU to mine DAPA easily using [xelis-hash](https://github.com/xelis-project/xelis-hash).
 - **Kalman Filter**: Difficulty adjustment algorithm using Kalman Filter to adjust the difficulty at each block instantly and smoothly to prevent any stuck-chain or dishonest miners mining at lower difficulty. 
 - **Privacy**: Homomorphic Encryption allows to have encrypted balances and encrypted transfered amounts.
-- **Smart Contracts**: allows to create unstoppable decentralized applications by deploying programs on the network, executed in our sandboxed environment [xelis-vm](https://github.com/xelis-project/xelis-vm).
+- **Smart Contracts**: allows to create unstoppable decentralized applications by deploying programs on the network, executed in our sandboxed environment [xelis-vm](https://github.com/k7n2g/xelis-vm).
 - **Confidential Asset**: Any asset deployed on DAPA network will have the same privacy and functionality like DAPA in any wallet.
 - **Event system**: every event happening on the network (daemon or wallet) can be detected and notified easily.
 - **Instant Synchronization**: Your wallet balances and history is synced in few seconds. No need to sync the whole chain to use your wallet.
@@ -17,7 +17,7 @@ The main features of DAPA are the following:
 - **Smart Contracts**: Create and deploy unstoppable decentralized applications.
 - **Extra Data**: Send extra data in a transaction to transfer easily data to a wallet. This is secure and encrypted, readable only by the parties of a transaction.
 - **Integrated addresses**: Auto-integrate extra-data in a transaction when using an integrated address.
-- **Easy to use**: We aims to provide the most easiest platform to build and use daily.
+
 
 For more, see the [full documentation](https://docs.dapahe.com).
 
@@ -25,9 +25,8 @@ For more, see the [full documentation](https://docs.dapahe.com).
 
 For easy of use, we provide different built-in networks:
 - Mainnet: Released April 20, 2024.
-- Testnet: Running
-- Devnet: this network is used for local development purpose where you want to create your own local chain. It has no peers
-
+- Testnet:
+- Devnet: 
 You can switch between networks by using the `--network` option.
 By default, the network is set to `mainnet`.
 
@@ -36,7 +35,7 @@ By default, the network is set to `mainnet`.
 [@cchudant](https://github.com/cchudant):
 - Optimized decoding RistrettoPoint implementation (ECDLP).
 - Twisted ElGamal implementation along ZK-Proofs integration for Confidential Transactions.
-- To read more, please see [DAPA-HE](https://github.com/k7n2g/dapa-he) framework created by him.
+- To read more, please see [DAPA-HE](https://github.com/xelis-project/xelis-he) framework created by him.
 
 [@deroholic](https://github.com/deroholic):
 - Difficulty adjustment algorithm using Kalman-Filter.
@@ -85,18 +84,18 @@ Current dev fee curve is as following:
 ### Network
 
 - Expected Block Time is `15` seconds
-- Address prefix is `xel` on mainnet and `xet` for testnet/devnet
-- Transaction fee is based on various parameters (fee is `0.0001` XEL per KB, `0.001` XEL per account creation, `0.00005` XEL per transfer)
+- Address prefix is `dap` on mainnet and `xet` for testnet/devnet
+- Transaction fee is based on various parameters (fee is `0.0001` DAPA per KB, `0.001` DAPA per account creation, `0.00005` DAPA per transfer)
 - Up to `8` decimals
-- Maximum supply: `18.4` millions
+- Maximum supply: `800` millions
 - Maximum block size: `1.25` MB
 - Difficulty adjustment algorithm: retarget at every block
 - Block reward emission: retarget at every block (Smooth decrease)
 
 ### Daemon
 
-- Default P2P port is `2125`
-- Defaut RPC Server port is `8080`
+- Default P2P port is `20100`
+- Defaut RPC Server port is `20101`
 
 ### Wallet
 
@@ -164,7 +163,7 @@ This is done so a block template can be generic and easily updatable for any min
 
 For pool development, you must verify that the miner public key in a received share is yours as it can be updated.
 
-All hashes are calculated using the `Blake3` hashing algorithm except the Proof-Of-Work hash, which use [xelis-hash](https://github.com/k7n2g/dapa-hash).
+All hashes are calculated using the `Blake3` hashing algorithm except the Proof-Of-Work hash, which use [xelis-hash](https://github.com/xelis-project/xelis-hash).
 
 POW Hash should be calculated from the `MinerWork` format and compared against the target difficulty.
 
@@ -543,7 +542,6 @@ Otherwise, an error like this will be sent and the connection will be closed by 
     "jsonrpc": "2.0"
 }
 ```
-#   d a p a - b l o c k c h a i n 
  
  #   d a p a - b l o c k c h a i n 
  
