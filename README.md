@@ -2,7 +2,7 @@
 
 <p>DAPA is an Advanced Blockchain with **BlockDAG**  **Privacy**, **Speed**, **Scalability** and **Smart Contracts** as default.</p>
 
-## Features</p>
+## Features
 
 <p>The main features of DAPA are the following:</p>
 <p>- **BlockDAG**: enabled to improve the scalability and the security of the network by reducing orphaned blocks rate.</p>
@@ -21,7 +21,7 @@
 
 <p>For more, see the [full documentation](https://docs.dapahe.com).</p>
 
-<p>## Networks</p>
+## Networks
 
 <p>For easy of use, we provide different built-in networks:</p>
 <p>- Mainnet: Released April 20, 2024.</p>
@@ -30,7 +30,7 @@
 <p>You can switch between networks by using the `--network` option.</p>
 <p>By default, the network is set to `mainnet`.</p>
 
-<p>## Acknowledgments</p>
+## Acknowledgments
 
 <p>[@cchudant](https://github.com/cchudant):</p>
 <p>- Optimized decoding RistrettoPoint implementation (ECDLP).</p>
@@ -42,19 +42,19 @@
 </p>
 <p>Thank you to every people testing actively the code base, honest miners and every future contributors!</p>
 
-<p>## How to build</p>
+## How to build
 
 <p>Building this project requires a working [Rust](https://rustup.rs) (stable) toolchain.</p>
 
 <p>It's expected to be cross-platform and guaranteed to work on Linux, Windows, MacOS platforms.</p>
 
-<p>### Build from sub project</p>
+### Build from sub project</p>
 
 <p>Go to one of following folder you want to build from source: `dapa_daemon`, `dapa_miner` or `dapa_wallet`.</p>
 <p>To build a release (optimized) version:</p>
 `cargo build --release`</p>
 
-<p>### Build from workspace</p>
+### Build from workspace</p>
 
 <p>To build a specific binary from workspace (parent folder) directly, use the option `--bin` with `dapa_daemon`, `dapa_miner` or `dapa_wallet` as value.</p>
 <p>Example: `cargo build --release --bin dapa_miner`</p>
@@ -64,12 +64,12 @@
 <p>You can also build a debug version (just remove `--release` option) or run it directly from cargo:
 `cargo run`</p>
 
-<p>### Build from Docker</p>
+### Build from Docker</p>
 
 <p>To build using Docker, use the following command, using the `app` build argument to chose which project to build:
 `docker build -t dapa-daemon:master --build-arg app=dapa_daemon .`</p>
 
-<p>## Funding</p>
+## Funding</p>
 
 <p>To help the development of this blochain we set a dev fee percentage at 10% on block reward.</p>
 
@@ -78,9 +78,9 @@
 <p>- 10% from block 0 to 14,500 (expected time is ~1.5 years with BlockDAG).</p>
 <p>- 5% from 3,250,001 until the project being developed is stable on major facets of the ecosystem in order to reduce it.</p>
 
-<p>## Config</p>
+## Config</p>
 
-<p>### Network</p>
+### Network</p>
 
 <p>- Expected Block Time is `15` seconds</p>
 <p>- Address prefix is `dap` on mainnet and `xet` for testnet/devnet</p>
@@ -91,16 +91,16 @@
 <p>- Difficulty adjustment algorithm: retarget at every block</p>
 -<p> Block reward emission: retarget at every block (Smooth decrease)</p>
 
-<p>### Daemon</p>
+### Daemon</p>
 
 <p>- Default P2P port is `20100`</p>
 <p>- Defaut RPC Server port is `20101`</p>
 
-<p>### Wallet</p>
+### Wallet</p>
 
 <p>- Default RPC Server port is `8081`</p>
 
-<p>## BlockDAG
+## BlockDAG
 </p>
 <p>DAPA use a blockDAG with following rules:</p>
 <p>- A block is considered `Sync Block` when the block height is less than `TOP_HEIGHT - STABLE_LIMIT` and it's the unique block at a specific height (or only ordered block at its height and don't have lower cumulative difficulty than previous blocks).</p>
