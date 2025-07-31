@@ -1,4 +1,4 @@
-<p># DAPA</p>
+# DAPA
 
 <p>DAPA is an Advanced Blockchain with **BlockDAG**  **Privacy**, **Speed**, **Scalability** and **Smart Contracts** as default.</p>
 
