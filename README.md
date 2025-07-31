@@ -2,7 +2,7 @@
 
 <p>DAPA is an Advanced Blockchain with **BlockDAG**  **Privacy**, **Speed**, **Scalability** and **Smart Contracts** as default.</p>
 
-<p>## Features</p>
+## Features</p>
 
 <p>The main features of DAPA are the following:</p>
 <p>- **BlockDAG**: enabled to improve the scalability and the security of the network by reducing orphaned blocks rate.</p>
