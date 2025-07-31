@@ -1,108 +1,107 @@
 <p># DAPA</p>
 
-DAPA is an Advanced Blockchain with **BlockDAG**  **Privacy**, **Speed**, **Scalability** and **Smart Contracts** as default.
+<p>DAPA is an Advanced Blockchain with **BlockDAG**  **Privacy**, **Speed**, **Scalability** and **Smart Contracts** as default.</p>
 
-## Features
+<p>## Features</p>
 
-The main features of DAPA are the following:
-- **BlockDAG**: enabled to improve the scalability and the security of the network by reducing orphaned blocks rate.
-- **Egalitarian PoW**: Unique PoW algorithm built to allow any CPU or GPU to mine DAPA easily using [xelis-hash](https://github.com/xelis-project/xelis-hash).
-- **Kalman Filter**: Difficulty adjustment algorithm using Kalman Filter to adjust the difficulty at each block instantly and smoothly to prevent any stuck-chain or dishonest miners mining at lower difficulty. 
-- **Privacy**: Homomorphic Encryption allows to have encrypted balances and encrypted transfered amounts.
-- **Smart Contracts**: allows to create unstoppable decentralized applications by deploying programs on the network, executed in our sandboxed environment [xelis-vm](https://github.com/k7n2g/xelis-vm).
-- **Confidential Asset**: Any asset deployed on DAPA network will have the same privacy and functionality like DAPA in any wallet.
-- **Event system**: every event happening on the network (daemon or wallet) can be detected and notified easily.
-- **Instant Synchronization**: Your wallet balances and history is synced in few seconds. No need to sync the whole chain to use your wallet.
-- **Pruning Mode**: Reduce the blockchain size by deleting blocks, transactions and versioned balances.
-- **Smart Contracts**: Create and deploy unstoppable decentralized applications.
-- **Extra Data**: Send extra data in a transaction to transfer easily data to a wallet. This is secure and encrypted, readable only by the parties of a transaction.
-- **Integrated addresses**: Auto-integrate extra-data in a transaction when using an integrated address.
+<p>The main features of DAPA are the following:</p>
+<p>- **BlockDAG**: enabled to improve the scalability and the security of the network by reducing orphaned blocks rate.</p>
+<p>- **Egalitarian PoW**: Unique PoW algorithm built to allow any CPU or GPU to mine DAPA easily using [xelis-hash](https://github.com/xelis-project/xelis-hash).</p>
+<p>- **Kalman Filter**: Difficulty adjustment algorithm using Kalman Filter to adjust the difficulty at each block instantly and smoothly to prevent any stuck-chain or dishonest miners mining at lower difficulty. </p>
+<p>- **Privacy**: Homomorphic Encryption allows to have encrypted balances and encrypted transfered amounts.</p>
+<p>- **Smart Contracts**: allows to create unstoppable decentralized applications by deploying programs on the network, executed in our sandboxed environment [xelis-vm](https://github.com/k7n2g/xelis-vm).</p>
+<p>- **Confidential Asset**: Any asset deployed on DAPA network will have the same privacy and functionality like DAPA in any wallet.</p>
+<p>- **Event system**: every event happening on the network (daemon or wallet) can be detected and notified easily.</p>
+<p>- **Instant Synchronization**: Your wallet balances and history is synced in few seconds. No need to sync the whole chain to use your wallet.</p>
+<p>- **Pruning Mode**: Reduce the blockchain size by deleting blocks, transactions and versioned balances.</p>
+<p>- **Smart Contracts**: Create and deploy unstoppable decentralized applications.</p>
+<p>- **Extra Data**: Send extra data in a transaction to transfer easily data to a wallet. This is secure and encrypted, readable only by the parties of a transaction.</p>
+<p>- **Integrated addresses**: Auto-integrate extra-data in a transaction when using an integrated address.</p>
 
 
-For more, see the [full documentation](https://docs.dapahe.com).
+<p>For more, see the [full documentation](https://docs.dapahe.com).</p>
 
-## Networks
+<p>## Networks</p>
 
-For easy of use, we provide different built-in networks:
-- Mainnet: Released April 20, 2024.
-- Testnet:
-- Devnet: 
-You can switch between networks by using the `--network` option.
-By default, the network is set to `mainnet`.
+<p>For easy of use, we provide different built-in networks:</p>
+<p>- Mainnet: Released April 20, 2024.</p>
+<p>- Testnet:</p>
+<p>- Devnet: </p>
+<p>You can switch between networks by using the `--network` option.</p>
+<p>By default, the network is set to `mainnet`.</p>
 
-## Acknowledgments
+<p>## Acknowledgments</p>
 
-[@cchudant](https://github.com/cchudant):
-- Optimized decoding RistrettoPoint implementation (ECDLP).
-- Twisted ElGamal implementation along ZK-Proofs integration for Confidential Transactions.
-- To read more, please see [DAPA-HE](https://github.com/xelis-project/xelis-he) framework created by him.
+<p>[@cchudant](https://github.com/cchudant):</p>
+<p>- Optimized decoding RistrettoPoint implementation (ECDLP).</p>
+<p>- Twisted ElGamal implementation along ZK-Proofs integration for Confidential Transactions.</p>
+<p>- To read more, please see [DAPA-HE](https://github.com/xelis-project/xelis-he) framework created by him.</p>
 
-[@deroholic](https://github.com/deroholic):
-- Difficulty adjustment algorithm using Kalman-Filter.
+<p>[@deroholic](https://github.com/deroholic):</p>
+<p>- Difficulty adjustment algorithm using Kalman-Filter.
+</p>
+<p>Thank you to every people testing actively the code base, honest miners and every future contributors!</p>
 
-Thank you to every people testing actively the code base, honest miners and every future contributors!
+<p>## How to build</p>
 
-## How to build
+<p>Building this project requires a working [Rust](https://rustup.rs) (stable) toolchain.</p>
 
-Building this project requires a working [Rust](https://rustup.rs) (stable) toolchain.
+<p>It's expected to be cross-platform and guaranteed to work on Linux, Windows, MacOS platforms.</p>
 
-It's expected to be cross-platform and guaranteed to work on Linux, Windows, MacOS platforms.
+<p>### Build from sub project</p>
 
-### Build from sub project
+<p>Go to one of following folder you want to build from source: `dapa_daemon`, `dapa_miner` or `dapa_wallet`.</p>
+<p>To build a release (optimized) version:</p>
+`cargo build --release`</p>
 
-Go to one of following folder you want to build from source: `dapa_daemon`, `dapa_miner` or `dapa_wallet`.
-To build a release (optimized) version:
-`cargo build --release`
+<p>### Build from workspace</p>
 
-### Build from workspace
+<p>To build a specific binary from workspace (parent folder) directly, use the option `--bin` with `dapa_daemon`, `dapa_miner` or `dapa_wallet` as value.</p>
+<p>Example: `cargo build --release --bin dapa_miner`</p>
 
-To build a specific binary from workspace (parent folder) directly, use the option `--bin` with `dapa_daemon`, `dapa_miner` or `dapa_wallet` as value.
-Example: `cargo build --release --bin dapa_miner`
+<p>To build all at once just use `cargo build --release`</p>
 
-To build all at once just use `cargo build --release`
+<p>You can also build a debug version (just remove `--release` option) or run it directly from cargo:
+`cargo run`</p>
 
-You can also build a debug version (just remove `--release` option) or run it directly from cargo:
-`cargo run`
+<p>### Build from Docker</p>
 
-### Build from Docker
+<p>To build using Docker, use the following command, using the `app` build argument to chose which project to build:
+`docker build -t dapa-daemon:master --build-arg app=dapa_daemon .`</p>
 
-To build using Docker, use the following command, using the `app` build argument to chose which project to build:
-`docker build -t dapa-daemon:master --build-arg app=dapa_daemon .`
+<p>## Funding</p>
 
-## Funding
+<p>To help the development of this blochain we set a dev fee percentage at 10% on block reward.</p>
 
-DAPA is a community driven project and is not funded by any company or organization.
-To helps the development, the success and provide a better support of DAPA, we set a dev fee percentage starting at 10% on block reward.
+<p>Current dev fee curve is as following:</p>
 
-Current dev fee curve is as following:
+<p>- 10% from block 0 to 14,500 (expected time is ~1.5 years with BlockDAG).</p>
+<p>- 5% from 3,250,001 until the project being developed is stable on major facets of the ecosystem in order to reduce it.</p>
 
-- 10% from block 0 to 3,250,000 (expected time is ~1.5 years with BlockDAG).
-- 5% from 3,250,001 until the project being developed is stable on major facets of the ecosystem in order to reduce it.
+<p>## Config</p>
 
-## Config
+<p>### Network</p>
 
-### Network
+<p>- Expected Block Time is `15` seconds</p>
+<p>- Address prefix is `dap` on mainnet and `xet` for testnet/devnet</p>
+<p>- Transaction fee is based on various parameters (fee is `0.0001` DAPA per KB, `0.001` DAPA per account creation, `0.00005` DAPA per transfer)</p>
+<p>- Up to `8` decimals</p>
+<p>- Maximum supply: `800` millions</p>
+<p>- Maximum block size: `1.25` MB</p>
+<p>- Difficulty adjustment algorithm: retarget at every block</p>
+-<p> Block reward emission: retarget at every block (Smooth decrease)</p>
 
-- Expected Block Time is `15` seconds
-- Address prefix is `dap` on mainnet and `xet` for testnet/devnet
-- Transaction fee is based on various parameters (fee is `0.0001` DAPA per KB, `0.001` DAPA per account creation, `0.00005` DAPA per transfer)
-- Up to `8` decimals
-- Maximum supply: `800` millions
-- Maximum block size: `1.25` MB
-- Difficulty adjustment algorithm: retarget at every block
-- Block reward emission: retarget at every block (Smooth decrease)
+<p>### Daemon</p>
 
-### Daemon
+<p>- Default P2P port is `20100`</p>
+<p>- Defaut RPC Server port is `20101`</p>
 
-- Default P2P port is `20100`
-- Defaut RPC Server port is `20101`
+<p>### Wallet</p>
 
-### Wallet
+<p>- Default RPC Server port is `8081`</p>
 
-- Default RPC Server port is `8081`
-
-## BlockDAG
-
+<p>## BlockDAG
+</p>
 DAPA use a blockDAG with following rules:
 - A block is considered `Sync Block` when the block height is less than `TOP_HEIGHT - STABLE_LIMIT` and it's the unique block at a specific height (or only ordered block at its height and don't have lower cumulative difficulty than previous blocks).
 - A block is considered `Side Block` when block height is less than or equal to height of past 8 topological blocks.
@@ -542,7 +541,3 @@ Otherwise, an error like this will be sent and the connection will be closed by 
     "jsonrpc": "2.0"
 }
 ```
- 
- #   d a p a - b l o c k c h a i n 
- 
- 
