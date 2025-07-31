@@ -102,28 +102,28 @@
 
 <p>## BlockDAG
 </p>
-DAPA use a blockDAG with following rules:
-- A block is considered `Sync Block` when the block height is less than `TOP_HEIGHT - STABLE_LIMIT` and it's the unique block at a specific height (or only ordered block at its height and don't have lower cumulative difficulty than previous blocks).
-- A block is considered `Side Block` when block height is less than or equal to height of past 8 topological blocks.
-- A block is considered `Orphaned` when the block is not ordered in DAG (no topological height for it).
-- A height is not unique anymore.
-- Topo height is unique for each block, but can change when the DAG is re-ordered up to `TOP_HEIGHT - STABLE_LIMIT`.
-- You can have up to 3 previous blocks in a block.
-- For mining, you have to mine on one of 3 of the most heavier tips.
-- Block should not have deviated too much from main chain / heavier tips.
-- Maximum 9% of difficulty difference between Tips selected in the same block.
-- Side Blocks receive only 30% of block reward.
-- Supply is re-calculated each time the block is re-ordered because its based on topo order.
-- Transactions and miner rewards are re-computed when a new block is added and the block there linked to is not yet in stable topo height. 
-- A same transaction can be added in more than a block if they are not in the same tip branch. Client protocol will execute it only one time.
+<p>DAPA use a blockDAG with following rules:</p>
+<p>- A block is considered `Sync Block` when the block height is less than `TOP_HEIGHT - STABLE_LIMIT` and it's the unique block at a specific height (or only ordered block at its height and don't have lower cumulative difficulty than previous blocks).</p>
+<p>- A block is considered `Side Block` when block height is less than or equal to height of past 8 topological blocks.</p>
+<p>- A block is considered `Orphaned` when the block is not ordered in DAG (no topological height for it).</p>
+<p>- A height is not unique anymore.</p>
+<p>- Topo height is unique for each block, but can change when the DAG is re-ordered up to `TOP_HEIGHT - STABLE_LIMIT`.</p>
+<p>- You can have up to 3 previous blocks in a block.</p>
+<p>- For mining, you have to mine on one of 3 of the most heavier tips.</p>
+<p>- Block should not have deviated too much from main chain / heavier tips.</p>
+<p>- Maximum 9% of difficulty difference between Tips selected in the same block.</p>
+<p>- Side Blocks receive only 30% of block reward.</p>
+<p>- Supply is re-calculated each time the block is re-ordered because its based on topo order.</p>
+<p>- Transactions and miner rewards are re-computed when a new block is added and the block there linked to is not yet in stable topo height. </p>
+-<p> A same transaction can be added in more than a block if they are not in the same tip branch. Client protocol will execute it only one time.</p>
 
-Topoheight represents how many unique blocks there is in the blockchain ordered by DAG.
+<p>Topoheight represents how many unique blocks there is in the blockchain ordered by DAG.</p>
 
-A block ordered is a valid and executed one.
+<p>A block ordered is a valid and executed one.</p>
 
-Topoheight order is unstable and may change until the blocks are in the stable height.
+<p>Topoheight order is unstable and may change until the blocks are in the stable height.</p>
 
-Longest chain is the one selected by nodes. But for tips branches conflicts, cumulative difficulty is used to select the main chain.
+<p>Longest chain is the one selected by nodes. But for tips branches conflicts, cumulative difficulty is used to select the main chain.</p>
 
 ## Homomorphic Encryption
 
