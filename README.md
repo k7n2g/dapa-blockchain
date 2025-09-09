@@ -23,11 +23,11 @@
 
 ## Networks
 
-<p>For easy of use, we provide different built-in networks:</p>
-<p>- Mainnet: Released April 20, 2024.</p>
+<p>We will it is hoped provide different built-in networks:</p>
+<p>- Mainnet: Released August 09, 2025.</p>
 <p>- Testnet:</p>
 <p>- Devnet: </p>
-<p>You can switch between networks by using the `--network` option.</p>
+<p>When Active You will be able to switch between networks by using the `--network` options.</p>
 <p>By default, the network is set to `mainnet`.</p>
 
 ## Acknowledgments
@@ -82,11 +82,11 @@
 
 ### Network</p>
 
-<p>- Expected Block Time is `15` seconds</p>
-<p>- Address prefix is `dap` on mainnet and `xet` for testnet/devnet</p>
-<p>- Transaction fee is based on various parameters (fee is `0.0001` DAPA per KB, `0.001` DAPA per account creation, `0.00005` DAPA per transfer)</p>
+<p>- Expected Block Time is `12/15` seconds</p>
+<p>- Address prefix is `dap` on mainnet and `dah` for testnet/devnet</p>
+<p>- Transaction fee is based on various parameters (fee is `0.0001` DAP per KB, `0.001` DAP per account creation, `0.00005` DAP per transfer)</p>
 <p>- Up to `8` decimals</p>
-<p>- Maximum supply: `800` millions</p>
+<p>- Maximum supply: `800.000.000` million</p>
 <p>- Maximum block size: `1.25` MB</p>
 <p>- Difficulty adjustment algorithm: retarget at every block</p>
 -<p> Block reward emission: retarget at every block (Smooth decrease)</p>
