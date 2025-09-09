@@ -75,8 +75,8 @@
 
 <p>Current dev fee curve is as following:</p>
 
-<p>- 10% from block 0 to 14,500 (expected time is ~1.5 years with BlockDAG).</p>
-<p>- 5% from 3,250,001 until the project being developed is stable on major facets of the ecosystem in order to reduce it.</p>
+<p>- 10% from block 0 to 14,900.</p>
+<p>- 5% from 14,901 until the project being developed is stable then reduced.</p>
 
 ## Config</p>
 
