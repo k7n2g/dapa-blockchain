@@ -15,7 +15,7 @@ use dapa_common::{
 
 // In case of potential forks, have a unique network id to not connect to others compatible chains
 pub const NETWORK_ID_SIZE: usize = 16;
-pub const NETWORK_ID: [u8; NETWORK_ID_SIZE] = [0x14, 0x6c, 0x4, 0x13, 0x11, 0x8f, 0x41, 0x65, 0x9c, 0x31, 0x65, 0x4f, 0x72, 0x6c, 0x8f, 0x47];
+pub const NETWORK_ID: [u8; NETWORK_ID_SIZE] = [0x21, 0x4c, 0x4, 0x31, 0x11, 0x8f, 0x46, 0x65, 0x9c, 0x39, 0x65, 0x4f, 0x78, 0x6c, 0x8f, 0x44];
 
 // bind addresses
 pub const DEFAULT_P2P_BIND_ADDRESS: &str = "0.0.0.0:20100";
@@ -48,31 +48,27 @@ pub const PRUNE_SAFETY_LIMIT: u64 = STABLE_LIMIT * 10;
 // BlockDAG rules
 pub const STABLE_LIMIT: u64 = 8; // in how many height we consider the block stable
 
-// Pre-mine configuration for exchange liquidity
+// Pre-mine configuration providing for exchange liquidity
 // 50 million coins pre-mined at genesis to provide adequate liquidity for exchange listings
 // This ensures stable price discovery and reduces volatility during early adoption phase
 pub const PREMINE_AMOUNT: u64 = 50_000_000 * 100_000_000; // 50M coins in atomic units
 pub const PREMINE_ADDRESS: &str = "dap:vnytpjcq8z84prl46wtn7hdrqvu823dzvss7aj6fm4jjxqtxsa9qqz9lrvx"; // Using existing dev address
 
 // Emission rules
-// 15% (6 months), 10% (6 months), 5% per block going to dev address
-// NOTE: The explained emission above was the expected one
-// But due to a bug in the function to calculate the dev fee reward,
-// the actual emission was directly set to 10% per block
-// New emission rules are: 10% during 1.5 years, then 5% for the rest
+// New emission rules are: 25% for 14.545 blocks then 3% for the rest
 // This is the same for the project but reduce a bit the mining cost as they earn 5% more
 pub const DEV_FEES: [DevFeeThreshold; 2] = [
     // Activated for 
     DevFeeThreshold {
         height: 0,
-        fee_percentage: 10
+        fee_percentage: 25
     },
     // Activated for the rest
     DevFeeThreshold {
-        // areduced to 5%
+        // areduced to 3%
         //* 15s of block time 
         height: 14_545, 
-        fee_percentage: 5
+        fee_percentage: 3
     }
 ];
 // only 30% of reward for side block
