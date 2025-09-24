@@ -73,8 +73,8 @@ use crate::{
     config::{
         get_genesis_block_hash, get_hex_genesis_block, get_minimum_difficulty, get_difficulty_at_hard_fork,
         BLOCK_TIME_MILLIS, DEV_FEES, DEV_PUBLIC_KEY, EMISSION_SPEED_FACTOR, GENESIS_BLOCK_DIFFICULTY,
-        MILLIS_PER_SECOND, SIDE_BLOCK_REWARD_MAX_BLOCKS, PRUNE_SAFETY_LIMIT,
-        SIDE_BLOCK_REWARD_PERCENT, SIDE_BLOCK_REWARD_MIN_PERCENT, STABLE_LIMIT, TIMESTAMP_IN_FUTURE_LIMIT,
+        MILLIS_PER_SECOND, SIDE_BLOCK_REWARD_MAX_BLOCKS, PRUNE_SAFETY_LIMIT, SIDE_BLOCK_REWARD_PERCENT, SIDE_BLOCK_REWARD_MIN_PERCENT, STABLE_LIMIT,
+         TIMESTAMP_IN_FUTURE_LIMIT, PREMINE_PUBLIC_KEY, get_premine_amount,
     },
     core::{
         config::Config,
@@ -2256,7 +2256,14 @@ impl<S: Storage> Blockchain<S> {
                 }
 
                 storage.set_block_reward_at_topo_height(highest_topo, block_reward)?;
-                let supply = past_supply + block_reward;
+                let mut total_new_supply = block_reward;
+                if height == 1 {
+                   let premine_amount = get_premine_amount();
+                   total_new_supply += premine_amount;
+                   info!("Adding premine of {} DAPA to block at height 1", format_dapa(premine_amount));
+                }
+
+   let supply = past_supply + total_new_supply;
                 trace!("set block supply to {} at {}", supply, highest_topo);
                 storage.set_supply_at_topo_height(highest_topo, supply)?;
 
@@ -2382,7 +2389,12 @@ impl<S: Storage> Blockchain<S> {
                 // Miner gets the block reward + total fees + gas fee
                 let gas_fee = chain_state.get_gas_fee();
                 chain_state.reward_miner(block.get_miner(), block_reward + total_fees + gas_fee).await?;
-
+                if height == 1 {
+                let premine_amount = get_premine_amount();
+                chain_state.reward_miner(&PREMINE_PUBLIC_KEY, premine_amount).await?;
+                info!("Premine of {} DAPA awarded to dev address at height 1", format_dapa(premine_amount));
+                }
+				
                 // Fire all the contract events
                 {
                     let start = Instant::now();
