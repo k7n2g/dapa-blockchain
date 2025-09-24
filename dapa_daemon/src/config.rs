@@ -48,6 +48,12 @@ pub const PRUNE_SAFETY_LIMIT: u64 = STABLE_LIMIT * 10;
 // BlockDAG rules
 pub const STABLE_LIMIT: u64 = 8; // in how many height we consider the block stable
 
+// Pre-mine configuration for exchange liquidity
+// 50 million coins pre-mined at genesis to provide adequate liquidity for exchange listings
+// This ensures stable price discovery and reduces volatility during early adoption phase
+pub const PREMINE_AMOUNT: u64 = 50_000_000 * 100_000_000; // 50M coins in atomic units
+pub const PREMINE_ADDRESS: &str = "dap:vnytpjcq8z84prl46wtn7hdrqvu823dzvss7aj6fm4jjxqtxsa9qqz9lrvx"; // Using existing dev address
+
 // Emission rules
 // 15% (6 months), 10% (6 months), 5% per block going to dev address
 // NOTE: The explained emission above was the expected one
@@ -56,17 +62,17 @@ pub const STABLE_LIMIT: u64 = 8; // in how many height we consider the block sta
 // New emission rules are: 10% during 1.5 years, then 5% for the rest
 // This is the same for the project but reduce a bit the mining cost as they earn 5% more
 pub const DEV_FEES: [DevFeeThreshold; 2] = [
-    // Activated for 3M blocks
+    // Activated for 
     DevFeeThreshold {
         height: 0,
-        fee_percentage: 100
+        fee_percentage: 10
     },
     // Activated for the rest
     DevFeeThreshold {
-        // after ~1.5 year it's reduced to 5%
-        // 3 250 000 blocks * 15s of block time 
+        // areduced to 5%
+        //* 15s of block time 
         height: 14_545, 
-        fee_percentage: 10
+        fee_percentage: 5
     }
 ];
 // only 30% of reward for side block
@@ -268,6 +274,9 @@ pub fn get_hex_genesis_block(network: &Network) -> Option<&str> {
 lazy_static! {
     // Developer public key is lazily converted from address to support any network
     pub static ref DEV_PUBLIC_KEY: PublicKey = Address::from_string(&DEV_ADDRESS).unwrap().to_public_key();
+    
+    // Pre-mine public key is lazily converted from address to support any network
+    pub static ref PREMINE_PUBLIC_KEY: PublicKey = Address::from_string(&PREMINE_ADDRESS).unwrap().to_public_key();
 }
 
 // Genesis block hash based on network selected
@@ -315,4 +324,14 @@ pub const fn get_hard_forks(network: &Network) -> &[HardFork] {
         Network::Mainnet => &HARD_FORKS,
         _ => &TESTNET_HARD_FORKS,
     }
+}
+
+// Get the pre-mine amount
+pub const fn get_premine_amount() -> u64 {
+    PREMINE_AMOUNT
+}
+
+// Get the pre-mine address
+pub const fn get_premine_address() -> &'static str {
+    PREMINE_ADDRESS
 }
