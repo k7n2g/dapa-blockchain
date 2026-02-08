@@ -1,0 +1,432 @@
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use crate::{
+    account::Nonce,
+    crypto::{
+        elgamal::CompressedPublicKey,
+        Hash,
+        Hashable,
+        Signature,
+    },
+    serializer::*
+};
+
+use bulletproofs::RangeProof;
+use multisig::MultiSig;
+
+pub mod builder;
+pub mod verify;
+pub mod extra_data;
+pub mod multisig;
+
+mod payload;
+mod source_commitment;
+mod reference;
+mod version;
+
+pub use payload::*;
+pub use reference::Reference;
+pub use version::TxVersion;
+pub use source_commitment::SourceCommitment;
+
+#[cfg(test)]
+pub mod tests;
+
+// Maximum size of extra data per transfer
+pub const EXTRA_DATA_LIMIT_SIZE: usize = 1024;
+// Maximum total size of payload across all transfers per transaction
+pub const EXTRA_DATA_LIMIT_SUM_SIZE: usize = EXTRA_DATA_LIMIT_SIZE * 32;
+// Maximum number of transfers per transaction
+pub const MAX_TRANSFER_COUNT: usize = 255;
+// Maximum number of deposits per Invoke Call
+pub const MAX_DEPOSIT_PER_INVOKE_CALL: usize = 255;
+// Maximum number of participants in a multi signature account
+pub const MAX_MULTISIG_PARTICIPANTS: usize = 255;
+
+/// Simple enum to determine which DecryptHandle to use to craft a Ciphertext
+/// This allows us to store one time the commitment and only a decrypt handle for each.
+/// The DecryptHandle is used to decrypt the ciphertext and is selected based on the role in the transaction.
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Copy, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Role {
+    Sender,
+    Receiver,
+}
+
+// this enum represent all types of transaction available on DAPA Network
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum TransactionType {
+    Transfers(Vec<TransferPayload>),
+    Burn(BurnPayload),
+    MultiSig(MultiSigPayload),
+    InvokeContract(InvokeContractPayload),
+    DeployContract(DeployContractPayload),
+}
+
+// Transaction to be sent over the network
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+pub struct Transaction {
+    /// Version of the transaction
+    version: TxVersion,
+    // Source of the transaction
+    source: CompressedPublicKey,
+    /// Type of the transaction
+    data: TransactionType,
+    /// Fees (containing base fee, extra fee and potential tip)
+    /// in DAPA
+    fee: u64,
+    /// Maximum allowed fee to be spent by source
+    /// In DAPA
+    fee_limit: u64,
+    /// nonce must be equal to the one on chain account
+    /// used to prevent replay attacks and have ordered transactions
+    nonce: Nonce,
+    /// We have one source commitment and equality proof per asset used in the tx.
+    source_commitments: Vec<SourceCommitment>,
+    /// The range proof is aggregated across all transfers and across all assets.
+    #[schemars(with = "Vec<u8>", description = "Binary representation of the range proof")]
+    range_proof: RangeProof,
+    /// At which block the TX is built
+    reference: Reference,
+    /// MultiSig contains the signatures of the transaction
+    /// Only available since V1
+    multisig: Option<MultiSig>,
+    /// The signature of the source key
+    signature: Signature,
+}
+
+impl Transaction {
+    // Create a new transaction
+    #[inline(always)]
+    pub fn new(
+        version: TxVersion,
+        source: CompressedPublicKey,
+        data: TransactionType,
+        fee: u64,
+        fee_limit: u64,
+        nonce: Nonce,
+        source_commitments: Vec<SourceCommitment>,
+        range_proof: RangeProof,
+        reference: Reference,
+        multisig: Option<MultiSig>,
+        signature: Signature
+    ) -> Self {
+        Self {
+            version,
+            source,
+            data,
+            fee,
+            fee_limit,
+            nonce,
+            source_commitments,
+            range_proof,
+            reference,
+            multisig,
+            signature,
+        }
+    }
+
+    // Get the transaction version
+    #[inline(always)]
+    pub fn get_version(&self) -> TxVersion {
+        self.version
+    }
+
+    // Get the source key
+    #[inline(always)]
+    pub fn get_source(&self) -> &CompressedPublicKey {
+        &self.source
+    }
+
+    // Get the transaction type
+    #[inline(always)]
+    pub fn get_data(&self) -> &TransactionType {
+        &self.data
+    }
+
+    // Get fees paid to miners
+    #[inline(always)]
+    pub fn get_fee(&self) -> u64 {
+        self.fee
+    }
+
+    // Get the fee max
+    #[inline(always)]
+    pub fn get_fee_limit(&self) -> u64 {
+        self.fee_limit
+    }
+
+    // Get the nonce used
+    #[inline(always)]
+    pub fn get_nonce(&self) -> Nonce {
+        self.nonce
+    }
+
+    // Get the source commitments
+    #[inline(always)]
+    pub fn get_source_commitments(&self) -> &Vec<SourceCommitment> {
+        &self.source_commitments
+    }
+
+    // Get the used assets
+    #[inline(always)]
+    pub fn get_assets(&self) -> impl Iterator<Item = &Hash> {
+        self.source_commitments.iter().map(SourceCommitment::get_asset)
+    }
+
+    // Get the range proof
+    #[inline(always)]
+    pub fn get_range_proof(&self) -> &RangeProof {
+        &self.range_proof
+    }
+
+    // Get the multisig
+    #[inline(always)]
+    pub fn get_multisig(&self) -> &Option<MultiSig> {
+        &self.multisig
+    }
+
+    // Get the count of signatures in a multisig transaction
+    #[inline(always)]
+    pub fn get_multisig_count(&self) -> usize {
+        self.multisig.as_ref().map(|m| m.len()).unwrap_or(0)
+    }
+
+    // Get the signature of source key
+    #[inline(always)]
+    pub fn get_signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    // Get the block reference to determine which block the transaction is built
+    #[inline(always)]
+    pub fn get_reference(&self) -> &Reference {
+        &self.reference
+    }
+
+    // Get the total outputs count per TX
+    // default is 1
+    // Transfers / Deposits are their own len
+    // This max it against source commitments
+    // this allows us to determine how many HE operations
+    // will occurs just for the source side
+    #[inline]
+    pub fn get_outputs_count(&self) -> usize {
+        match &self.data {
+            TransactionType::Transfers(transfers) => transfers.len(),
+            TransactionType::InvokeContract(payload) => payload.deposits.len().max(1),
+            TransactionType::DeployContract(payload) => payload.invoke.as_ref()
+                .map_or(1, |v| v.deposits.len().max(1)),
+            _ => 1
+        }.max(self.source_commitments.len())
+    }
+
+    // If the transaction is an InvokeContract, return the contract hash
+    #[inline]
+    pub fn invoked_contract(&self) -> Option<&Hash> {
+        match &self.data {
+            TransactionType::InvokeContract(payload) => Some(&payload.contract),
+            _ => None
+        }
+    }
+
+    // Consume the transaction by returning the source public key and the transaction type
+    #[inline(always)]
+    pub fn consume(self) -> (CompressedPublicKey, TransactionType) {
+        (self.source, self.data)
+    }
+}
+
+impl Serializer for TransactionType {
+    fn write(&self, writer: &mut Writer) {
+        match self {
+            TransactionType::Burn(payload) => {
+                writer.write_u8(0);
+                payload.write(writer);
+            }
+            TransactionType::Transfers(txs) => {
+                writer.write_u8(1);
+                // max 255 txs per transaction
+                let len: u8 = txs.len() as u8;
+                writer.write_u8(len);
+                for tx in txs {
+                    tx.write(writer);
+                }
+            },
+            TransactionType::MultiSig(payload) => {
+                writer.write_u8(2);
+                payload.write(writer);
+            },
+            TransactionType::InvokeContract(payload) => {
+                writer.write_u8(3);
+                payload.write(writer);
+            },
+            TransactionType::DeployContract(module) => {
+                writer.write_u8(4);
+                module.write(writer);
+            }
+        };
+    }
+
+    fn read(reader: &mut Reader) -> Result<TransactionType, ReaderError> {
+        Ok(match reader.read_u8()? {
+            0 => {
+                let payload = BurnPayload::read(reader)?;
+                TransactionType::Burn(payload)
+            },
+            1 => {
+                let txs_count = reader.read_u8()?;
+                if txs_count == 0 || txs_count > MAX_TRANSFER_COUNT as u8 {
+                    return Err(ReaderError::InvalidSize)
+                }
+
+                let mut txs = Vec::with_capacity(txs_count as usize);
+                for _ in 0..txs_count {
+                    txs.push(TransferPayload::read(reader)?);
+                }
+                TransactionType::Transfers(txs)
+            },
+            2 => TransactionType::MultiSig(MultiSigPayload::read(reader)?),
+            3 => TransactionType::InvokeContract(InvokeContractPayload::read(reader)?),
+            4 => TransactionType::DeployContract(DeployContractPayload::read(reader)?),
+            _ => {
+                return Err(ReaderError::InvalidValue)
+            }
+        })
+    }
+
+    fn size(&self) -> usize {
+        // 1 byte for variant
+        1 + match self {
+            TransactionType::Burn(payload) => payload.size(),
+            TransactionType::Transfers(txs) => {
+                // 1 byte for count of transfers
+                let mut size = 1;
+                for tx in txs {
+                    size += tx.size();
+                }
+                size
+            },
+            TransactionType::MultiSig(payload) => {
+                // 1 byte for threshold, 1 byte for count of participants
+                1 + 1 + payload.participants.iter().map(|p| p.size()).sum::<usize>()
+            },
+            TransactionType::InvokeContract(payload) => payload.size(),
+            TransactionType::DeployContract(payload) => payload.size(),
+        }
+    }
+}
+
+impl Serializer for Transaction {
+    fn write(&self, writer: &mut Writer) {
+        self.version.write(writer);
+        self.source.write(writer);
+        self.data.write(writer);
+        self.fee.write(writer);
+        if self.version >= TxVersion::V2 {
+            self.fee_limit.write(writer);
+        }
+
+        self.nonce.write(writer);
+
+        writer.write_u8(self.source_commitments.len() as u8);
+        for commitment in &self.source_commitments {
+            commitment.write(writer);
+        }
+
+        self.range_proof.write(writer);
+        self.reference.write(writer);
+
+        if self.version != TxVersion::V0 {
+            self.multisig.write(writer);
+        }
+
+        self.signature.write(writer);
+    }
+
+    fn read(reader: &mut Reader) -> Result<Transaction, ReaderError> {
+        let version = TxVersion::read(reader)?;
+
+        reader.context_mut()
+            .store(version);
+
+        let source = CompressedPublicKey::read(reader)?;
+        let data = TransactionType::read(reader)?;
+        let fee = reader.read_u64()?;
+        let fee_limit = if version >= TxVersion::V2 {
+            reader.read_u64()?
+        } else {
+            fee
+        };
+
+        let nonce = Nonce::read(reader)?;
+
+        let commitments_len = reader.read_u8()?;
+        if commitments_len == 0 || commitments_len > MAX_TRANSFER_COUNT as u8 {
+            return Err(ReaderError::InvalidSize)
+        }
+
+        let mut source_commitments = Vec::with_capacity(commitments_len as usize);
+        for _ in 0..commitments_len {
+            source_commitments.push(SourceCommitment::read(reader)?);
+        }
+
+        let range_proof = RangeProof::read(reader)?;
+        let reference = Reference::read(reader)?;
+        let multisig = if version == TxVersion::V0 {
+            None
+        } else {
+            Option::read(reader)?
+        };
+
+        let signature = Signature::read(reader)?;
+
+        Ok(Transaction::new(
+            version,
+            source,
+            data,
+            fee,
+            fee_limit,
+            nonce,
+            source_commitments,
+            range_proof,
+            reference,
+            multisig,
+            signature,
+        ))
+    }
+
+    fn size(&self) -> usize {
+        // Version byte
+        let mut size = 1
+        + self.source.size()
+        + self.data.size()
+        + self.fee.size()
+        + self.nonce.size()
+        // Commitments length byte
+        + 1
+        + self.source_commitments.iter().map(|c| c.size()).sum::<usize>()
+        + self.range_proof.size()
+        + self.reference.size()
+        + self.signature.size();
+
+        if self.version != TxVersion::V0 {
+            size += self.multisig.size();
+        }
+
+        if self.version >= TxVersion::V2 {
+            size += self.fee_limit.size();
+        }
+
+        size
+    }
+}
+
+impl Hashable for Transaction {}
+
+impl AsRef<Transaction> for Transaction {
+    fn as_ref(&self) -> &Transaction {
+        self
+    }
+}

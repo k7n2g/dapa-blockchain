@@ -1,0 +1,92 @@
+use anyhow::Context as AnyhowContext;
+use xelis_vm::{
+    impl_opaque,
+    traits::Serializable,
+    VMContext,
+    EnvironmentError,
+    FnInstance,
+    FnParams,
+    FnReturnType,
+    Primitive,
+    SysCallResult,
+};
+
+use crate::{
+    contract::{ModuleMetadata, ContractMetadata, OpaqueRistrettoPoint, SIGNATURE_OPAQUE_ID},
+    crypto::{Signature, SIGNATURE_SIZE},
+    serializer::{Serializer, Writer}
+};
+
+impl_opaque!(
+    "Signature",
+    Signature
+);
+impl_opaque!(
+    "Signature",
+    Signature,
+    json
+);
+
+impl Serializable for Signature {
+    fn get_size(&self) -> usize {
+        SIGNATURE_SIZE
+    }
+
+    fn is_serializable(&self) -> bool {
+        true
+    }
+
+    fn serialize(&self, buffer: &mut Vec<u8>) -> usize {
+        let mut writer = Writer::new(buffer);
+        writer.write_u8(SIGNATURE_OPAQUE_ID);
+        self.write(&mut writer);
+        writer.total_write()
+    }
+}
+
+pub fn signature_from_bytes_fn(_: FnInstance, params: FnParams, _: &ModuleMetadata<'_>, _: &mut VMContext) -> FnReturnType<ContractMetadata> {
+    let bytes = params[0]
+        .as_ref()
+        .as_bytes()?;
+
+    if bytes.len() != SIGNATURE_SIZE {
+        return Err(EnvironmentError::InvalidParameter);
+    }
+
+    let signature = Signature::from_bytes(&bytes)
+        .context("signature from bytes")?;
+    Ok(SysCallResult::Return(Primitive::Opaque(signature.into()).into()))
+}
+
+pub fn signature_verify_fn(zelf: FnInstance, mut params: FnParams, _: &ModuleMetadata<'_>, _: &mut VMContext) -> FnReturnType<ContractMetadata> {
+    let zelf = zelf?;
+    let signature: &Signature = zelf.as_opaque_type()?;
+
+    let mut point: OpaqueRistrettoPoint = params.remove(1)
+        .into_owned()
+        .into_opaque_type()?;
+
+    let data = params[0]
+        .as_ref()
+        .as_bytes()?;
+
+    let (compressed, key) = point.both()?;
+    Ok(SysCallResult::Return(Primitive::Boolean(signature.verify_internal(&data, &key, compressed)).into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use curve25519_dalek::Scalar;
+    use super::*;
+
+    #[test]
+    fn test_serde() {
+        let signature = Signature::new(Scalar::from(1u64), Scalar::from(2u64));
+        let v = serde_json::to_value(&signature).unwrap();
+
+        let signature2: Signature = serde_json::from_value(v)
+            .unwrap();
+
+        assert_eq!(signature, signature2);
+    }
+}

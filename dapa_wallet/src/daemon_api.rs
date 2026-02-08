@@ -1,0 +1,412 @@
+use std::{
+    borrow::Cow,
+    collections::HashSet,
+    sync::Arc,
+    time::Duration
+};
+
+use anyhow::Result;
+use indexmap::IndexSet;
+use dapa_common::{
+    account::VersionedBalance,
+    api::{daemon::*, RPCContractLog},
+    asset::RPCAssetData,
+    crypto::{
+        Address,
+        Hash
+    },
+    rpc::client::{
+        BatchRequest,
+        EventReceiver,
+        WebSocketJsonRPCClient,
+        WebSocketJsonRPCClientImpl
+    },
+    serializer::Serializer,
+    tokio::sync::broadcast,
+    transaction::Transaction
+};
+use log::{debug, trace};
+
+pub struct DaemonAPI {
+    client: WebSocketJsonRPCClient<NotifyEvent>,
+    capacity: usize,
+}
+
+impl DaemonAPI {
+    pub async fn new(daemon_address: String) -> Result<Self> {
+        Self::with(daemon_address, None, 64).await
+    }
+
+    pub async fn with(daemon_address: String, timeout: Option<Duration>, capacity: usize) -> Result<Self> {
+        let client = if let Some(timeout) = timeout {
+            WebSocketJsonRPCClientImpl::with(daemon_address, timeout).await?
+        } else {
+            WebSocketJsonRPCClientImpl::new(daemon_address).await?
+        };
+
+        Ok(Self {
+            client,
+            capacity
+        })
+    }
+
+    // Get the event channel capacity
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    // Get the underlying websocket client
+    #[inline]
+    pub fn client(&self) -> &WebSocketJsonRPCClient<NotifyEvent> {
+        &self.client
+    }
+
+    // is the websocket connection alive
+    #[inline]
+    pub fn is_online(&self) -> bool {
+        trace!("is_online");
+        self.client.is_online()
+    }
+
+    // Disconnect by closing the connection with node RPC
+    // This will only disconnect if there are no more references to the daemon API
+    pub async fn disconnect(self: &Arc<Self>) -> Result<bool> {
+        trace!("disconnect");
+        let count = Arc::strong_count(self);
+        if count > 1 {
+            debug!("There are still {} references to the daemon API", count);
+            return Ok(false);
+        }
+        self.client.disconnect().await?;
+        Ok(true)
+    }
+
+    // Disconnect by closing the connection with node RPC
+    pub async fn disconnect_force(&self) -> Result<()> {
+        trace!("disconnect_force");
+        self.client.disconnect().await
+    }
+
+    // Try to reconnect using the same client
+    pub async fn reconnect(&self) -> Result<bool> {
+        trace!("reconnect");
+        self.client.reconnect().await
+    }
+
+    // On connection event
+    pub async fn on_connection(&self) -> broadcast::Receiver<()> {
+        trace!("on_connection");
+        self.client.on_connection().await
+    }
+
+    // On reconnect event
+    pub async fn on_reconnect(&self) -> broadcast::Receiver<()> {
+        trace!("on_reconnect");
+        self.client.on_reconnect().await
+    }
+
+    // On connection lost
+    pub async fn on_connection_lost(&self) -> broadcast::Receiver<()> {
+        trace!("on_connection_lost");
+        self.client.on_connection_lost().await
+    }
+
+    pub async fn on_new_block_event(&self) -> Result<EventReceiver<NewBlockEvent>> {
+        trace!("on_new_block_event");
+        let receiver = self.client.subscribe_event(NotifyEvent::NewBlock, self.capacity).await?;
+        Ok(receiver)
+    }
+
+    pub async fn on_block_ordered_event(&self) -> Result<EventReceiver<BlockOrderedEvent<'static>>> {
+        trace!("on_block_ordered_event");
+        let receiver = self.client.subscribe_event(NotifyEvent::BlockOrdered, self.capacity).await?;
+        Ok(receiver)
+    }
+
+    pub async fn on_transaction_orphaned_event(&self) -> Result<EventReceiver<TransactionOrphanedEvent>> {
+        trace!("on_transaction_orphaned_event");
+        let receiver = self.client.subscribe_event(NotifyEvent::TransactionOrphaned, self.capacity).await?;
+        Ok(receiver)
+    }
+
+    pub async fn on_stable_height_changed_event(&self) -> Result<EventReceiver<StableHeightChangedEvent>> {
+        trace!("on_stable_height_changed_event");
+        let receiver = self.client.subscribe_event(NotifyEvent::StableHeightChanged, self.capacity).await?;
+        Ok(receiver)
+    }
+
+    pub async fn on_transaction_added_in_mempool_event(&self) -> Result<EventReceiver<TransactionAddedInMempoolEvent>> {
+        trace!("on_transaction_added_in_mempool_event");
+        let receiver = self.client.subscribe_event(NotifyEvent::TransactionAddedInMempool, self.capacity).await?;
+        Ok(receiver)
+    }
+
+    pub async fn on_stable_topoheight_changed_event(&self) -> Result<EventReceiver<StableTopoHeightChangedEvent>> {
+        trace!("on_stable_topoheight_changed_event");
+        let receiver = self.client.subscribe_event(NotifyEvent::StableTopoHeightChanged, self.capacity).await?;
+        Ok(receiver)
+    }
+
+    pub async fn on_contract_transfers_event(&self, address: Address) -> Result<EventReceiver<ContractTransfersEvent<'static>>> {
+        trace!("on_contract_transfers_event");
+        let receiver = self.client.subscribe_event(NotifyEvent::ContractTransfers { address }, self.capacity).await?;
+        Ok(receiver)
+    }
+
+    pub async fn get_version(&self) -> Result<String> {
+        trace!("get_version");
+        let version = self.client.call("get_version").await?;
+        Ok(version)
+    }
+
+    pub async fn get_info(&self) -> Result<GetInfoResult> {
+        trace!("get_info");
+        let info = self.client.call("get_info").await?;
+        Ok(info)
+    }
+
+    pub async fn get_pruned_topoheight(&self) -> Result<Option<u64>> {
+        trace!("get_pruned_topoheight");
+        let topoheight = self.client.call("get_pruned_topoheight").await?;
+        Ok(topoheight)
+    }
+
+    pub async fn get_asset(&self, asset: &Hash) -> Result<RPCAssetData<'static>> {
+        trace!("get_asset");
+        let assets = self.client.call_with("get_asset", &GetAssetParams {
+            asset: Cow::Borrowed(asset)
+        }).await?;
+        Ok(assets)
+    }
+
+    pub async fn get_account_assets(&self, address: &Address, maximum: Option<usize>, skip: Option<usize>) -> Result<HashSet<Hash>> {
+        trace!("get_account_assets");
+        let assets = self.client.call_with("get_account_assets", &GetAccountAssetsParams {
+            address: Cow::Borrowed(address),
+            maximum,
+            skip
+        }).await?;
+        Ok(assets)
+    }
+
+    pub async fn count_assets(&self) -> Result<usize> {
+        trace!("count_assets");
+        let count = self.client.call("count_assets").await?;
+        Ok(count)
+    }
+
+    pub async fn get_assets(&self, skip: Option<usize>, maximum: Option<usize>, minimum_topoheight: Option<u64>, maximum_topoheight: Option<u64>) -> Result<Vec<RPCAssetData<'static>>> {
+        trace!("get_assets");
+        let assets = self.client.call_with("get_assets", &GetAssetsParams {
+            maximum,
+            skip,
+            minimum_topoheight,
+            maximum_topoheight
+        }).await?;
+        Ok(assets)
+    }
+
+    pub async fn get_balance(&self, address: &Address, asset: &Hash) -> Result<GetBalanceResult> {
+        trace!("get_balance");
+        let balance = self.client.call_with("get_balance", &GetBalanceParams {
+            address: Cow::Borrowed(address),
+            asset: Cow::Borrowed(asset),
+        }).await?;
+        Ok(balance)
+    }
+
+    pub async fn get_balance_at_topoheight(&self, address: &Address, asset: &Hash, topoheight: u64) -> Result<VersionedBalance> {
+        trace!("get_balance_at_topoheight");
+        let balance = self.client.call_with("get_balance_at_topoheight", &GetBalanceAtTopoHeightParams {
+            topoheight,
+            asset: Cow::Borrowed(asset),
+            address: Cow::Borrowed(address)
+        }).await?;
+        Ok(balance)
+    }
+
+    pub async fn get_balances_at_maximum_topoheight<'a>(&self, address: &Address, assets: IndexSet<Cow<'a, Hash>>, maximum_topoheight: u64) -> Result<Vec<Option<RPCVersioned<VersionedBalance>>>> {
+        trace!("get_balances_at_maximum_topoheight");
+        let balances = self.client.call_with("get_balances_at_maximum_topoheight", &GetBalancesAtMaximumTopoHeightParams {
+            address: Cow::Borrowed(address),
+            assets,
+            maximum_topoheight,
+        }).await?;
+        Ok(balances)
+    }
+
+    pub async fn get_block_at_topoheight(&self, topoheight: u64) -> Result<BlockResponse> {
+        trace!("get_block_at_topoheight");
+        let block = self.client.call_with("get_block_at_topoheight", &GetBlockAtTopoHeightParams {
+            topoheight,
+            include_txs: false
+        }).await?;
+        Ok(block)
+    }
+
+    pub async fn get_block_with_txs_at_topoheight(&self, topoheight: u64) -> Result<BlockResponse> {
+        trace!("get_block_with_txs_at_topoheight");
+        let block = self.client.call_with("get_block_at_topoheight", &GetBlockAtTopoHeightParams {
+            topoheight,
+            include_txs: true
+        }).await?;
+        Ok(block)
+    }
+
+    pub async fn get_transaction(&self, hash: &Hash) -> Result<Transaction> {
+        trace!("get_transaction");
+        let tx = self.client.call_with("get_transaction", &GetTransactionParams {
+            hash: Cow::Borrowed(hash)
+        }).await?;
+        Ok(tx)
+    }
+
+    pub async fn get_transaction_executor(&self, hash: &Hash) -> Result<GetTransactionExecutorResult<'static>> {
+        trace!("get_transaction_executor");
+        let executor = self.client.call_with("get_transaction_executor", &GetTransactionExecutorParams {
+            hash: Cow::Borrowed(hash)
+        }).await?;
+        Ok(executor)
+    }
+
+    pub async fn submit_transaction(&self, transaction: &Transaction) -> Result<()> {
+        trace!("submit_transaction");
+        let _: bool = self.client.call_with("submit_transaction", &SubmitTransactionParams {
+            data: transaction.to_hex()
+        }).await?;
+        Ok(())
+    }
+
+    pub async fn get_nonce(&self, address: &Address) -> Result<GetNonceResult> {
+        trace!("get_nonce");
+        let nonce = self.client.call_with("get_nonce", &GetNonceParams {
+            address: Cow::Borrowed(address)
+        }).await?;
+        Ok(nonce)
+    }
+
+    pub async fn is_tx_executed_in_block(&self, tx_hash: &Hash, block_hash: &Hash) -> Result<bool> {
+        trace!("is_tx_executed_in_block");
+        let is_executed = self.client.call_with("is_tx_executed_in_block", &IsTxExecutedInBlockParams {
+            tx_hash: Cow::Borrowed(tx_hash),
+            block_hash: Cow::Borrowed(block_hash)
+        }).await?;
+        Ok(is_executed)
+    }
+
+    pub async fn get_mempool_cache(&self, address: &Address) -> Result<GetMempoolCacheResult> {
+        trace!("get_mempool_cache");
+        let cache = self.client.call_with("get_mempool_cache", &GetMempoolCacheParams {
+            address: Cow::Borrowed(address)
+        }).await?;
+        Ok(cache)
+    }
+
+    pub async fn is_account_registered(&self, address: &Address, in_stable_height: bool) -> Result<bool> {
+        trace!("is_account_registered");
+        let is_registered = self.client.call_with("is_account_registered", &IsAccountRegisteredParams {
+            address: Cow::Borrowed(address),
+            in_stable_height,
+        }).await?;
+        Ok(is_registered)
+    }
+
+    pub async fn get_stable_topoheight(&self) -> Result<u64> {
+        trace!("get_stable_topoheight");
+        let topoheight = self.client.call("get_stable_topoheight").await?;
+        Ok(topoheight)
+    }
+
+    pub async fn get_estimated_fee_per_kb(&self) -> Result<PredicatedBaseFeeResult> {
+        trace!("get_estimated_fee_per_kbable_topoheight");
+        let base_fee = self.client.call("get_estimated_fee_per_kb").await?;
+        Ok(base_fee)
+    }
+
+    pub async fn get_stable_balance(&self, address: &Address, asset: &Hash) -> Result<GetStableBalanceResult> {
+        trace!("get_stable_balance");
+        let balance = self.client.call_with("get_stable_balance", &GetBalanceParams {
+            address: Cow::Borrowed(address),
+            asset: Cow::Borrowed(asset),
+        }).await?;
+        Ok(balance)
+    }
+
+    pub async fn has_multisig(&self, address: &Address) -> Result<bool> {
+        trace!("has_multisig");
+        let has_multisig = self.client.call_with("has_multisig", &HasMultisigParams {
+            address: Cow::Borrowed(address)
+        }).await?;
+        Ok(has_multisig)
+    }
+
+    pub async fn get_multisig(&self, address: &Address) -> Result<GetMultisigResult> {
+        trace!("get_multisig");
+        let multisig = self.client.call_with("get_multisig", &GetMultisigParams {
+            address: Cow::Borrowed(address),
+        }).await?;
+        Ok(multisig)
+    }
+
+    pub async fn get_contract_logs(&self, tx_hash: &Hash) -> Result<Vec<RPCContractLog<'static>>> {
+        trace!("get contract outputs");
+        let outputs = self.client.call_with("get_contract_logs", &GetContractLogsParams {
+            caller: Cow::Borrowed(tx_hash)
+        }).await?;
+        Ok(outputs)
+    }
+
+    pub async fn get_contracts_outputs(&self, address: &Address, topoheight: u64) -> Result<GetContractsOutputsResult<'static>> {
+        trace!("get contracts logs");
+        let outputs = self.client.call_with("get_contracts_outputs", &GetContractOutputsParams {
+            address: Cow::Borrowed(address),
+            topoheight,
+        }).await?;
+        Ok(outputs)
+    }
+
+    // Batch request for block and contracts outputs
+    pub async fn get_block_and_outputs(&self, topoheight: u64, address: &Address) -> Result<(BlockResponse, GetContractsOutputsResult<'static>)> {
+        trace!("get_block_and_outputs batch");
+
+        let [block, outputs] = self.client.batch([
+            BatchRequest::new("get_block_at_topoheight", &GetBlockAtTopoHeightParams {
+                topoheight,
+                include_txs: true
+            })?,
+            BatchRequest::new("get_contracts_outputs", &GetContractOutputsParams {
+                address: Cow::Borrowed(address),
+                topoheight,
+            })?,
+        ]).await?;
+        let block: BlockResponse = block.into_result()?;
+        let outputs: GetContractsOutputsResult<'static> = outputs.into_result()?;
+        Ok((block, outputs))
+    }
+
+    // Batch request for block, outputs, and balance at topoheight
+    pub async fn get_block_outputs_and_balance(&self, block_topoheight: u64, address: &Address, asset: &Hash, balance_topoheight: u64) -> Result<(BlockResponse, GetContractsOutputsResult<'static>, VersionedBalance)> {
+        trace!("get_block_outputs_and_balance batch");
+
+        let [block, outputs, balance] = self.client.batch([
+            BatchRequest::new("get_block_at_topoheight", &GetBlockAtTopoHeightParams {
+                topoheight: block_topoheight,
+                include_txs: true
+            })?,
+            BatchRequest::new("get_contracts_outputs", &GetContractOutputsParams {
+                address: Cow::Borrowed(address),
+                topoheight: block_topoheight,
+            })?,
+            BatchRequest::new("get_balance_at_topoheight", &GetBalanceAtTopoHeightParams {
+                topoheight: balance_topoheight,
+                asset: Cow::Borrowed(asset),
+                address: Cow::Borrowed(address)
+            })?,
+        ]).await?;
+        let block: BlockResponse = block.into_result()?;
+        let outputs: GetContractsOutputsResult<'static> = outputs.into_result()?;
+        let balance: VersionedBalance = balance.into_result()?;
+        Ok((block, outputs, balance))
+    }
+}

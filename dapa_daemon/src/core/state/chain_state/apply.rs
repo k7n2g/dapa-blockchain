@@ -1,0 +1,1184 @@
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
+    ops::{Deref, DerefMut},
+};
+use anyhow::Context;
+use async_trait::async_trait;
+use log::{debug, trace, warn};
+use indexmap::{IndexMap, IndexSet};
+use dapa_common::{
+    account::{BalanceType, Nonce, VersionedBalance, VersionedNonce},
+    asset::VersionedAssetData,
+    block::{Block, BlockVersion, TopoHeight},
+    config::{EXTRA_BASE_FEE_BURN_PERCENT, FEE_PER_KB, DAPA_ASSET},
+    contract::{
+        AssetChanges,
+        CallbackEvent,
+        ChainState as ContractChainState,
+        EventCallbackRegistration,
+        ChainStateChanges,
+        ContractCache,
+        ContractEventTracker,
+        ContractLog,
+        ContractMetadata,
+        ContractModule,
+        ContractVersion,
+        ExecutionsChanges,
+        ExecutionsManager,
+        InterContractPermission,
+        ScheduledExecutionKind,
+        Source,
+        vm::{self, ContractCaller, InvokeContract}
+    },
+    crypto::{Hash, PublicKey, elgamal::Ciphertext},
+    serializer::Serializer,
+    transaction::{
+        ContractDeposit,
+        MultiSigPayload,
+        Reference,
+        Transaction,
+        verify::{
+            BlockchainApplyState,
+            BlockchainContractState,
+            BlockchainVerificationState,
+            ContractEnvironment
+        }
+    },
+    utils::format_dapa,
+    versioned_type::{Versioned, VersionedState}
+};
+use xelis_vm::{Environment, ValueCell};
+use crate::core::{
+    blockchain::{ContractEnvironments, tx_kb_size_rounded},
+    state::{chain_state::Account, verify_fee},
+    error::BlockchainError,
+    storage::{
+        types::TopoHeightMetadata,
+        Storage,
+        VersionedContractModule,
+        VersionedContractBalance,
+        VersionedContractData,
+        VersionedMultiSig,
+        VersionedSupply
+    }
+};
+
+use super::{ChainState, Echange};
+
+#[derive(Default)]
+struct ContractManager<'b> {
+    // logs per caller hash
+    logs: HashMap<Cow<'b, Hash>, Vec<ContractLog>>,
+    caches: HashMap<Hash, ContractCache>,
+    // global assets cache
+    assets: HashMap<Hash, Option<AssetChanges>>,
+    tracker: ContractEventTracker,
+    // Planned executions for the current block
+    executions: ExecutionsChanges,
+    // All events callback to process
+    events: VecDeque<CallbackEvent>,
+    // all events registrations that must be stored
+    events_listeners: HashMap<(Hash, u64), Vec<(Hash, EventCallbackRegistration)>>,
+    // all events already processed from storage
+    events_processed: HashMap<(Hash, u64), HashSet<Hash>>,
+}
+
+// Chain State that can be applied to the mutable storage
+// 's is the storage lifetime, 'b is the block data lifetime
+pub struct ApplicableChainState<'s, 'b, S: Storage> {
+    inner: ChainState<'s, 'b, S>,
+    block_hash: &'b Hash,
+    block: &'b Block,
+    contract_manager: ContractManager<'b>,
+    total_fees: u64,
+    total_fees_burned: u64,
+    // Transactions links to store: tx hash -> (blocks linked, executed in, contract)
+    transactions_links: HashMap<&'b Hash, (IndexSet<&'b Hash>, Option<&'b Hash>, Option<&'b Hash>)>,
+}
+
+pub struct FinalizedChainState<'b> {
+    // total fees paid in this block
+    // this include the gas fee paid by the TXs
+    total_fees: u64,
+    // total fees burned in this block
+    total_fees_burned: u64,
+    contract_manager: ContractManager<'b>,
+    // current block hash
+    block_hash: &'b Hash,
+    // Transactions links to store: tx hash -> (blocks linked, executed in, contract)
+    transactions_links: HashMap<&'b Hash, (IndexSet<&'b Hash>, Option<&'b Hash>, Option<&'b Hash>)>,
+    // Balances of the receiver accounts
+    receiver_balances: HashMap<Cow<'b, PublicKey>, HashMap<Cow<'b, Hash>, VersionedBalance>>,
+    // Sender accounts
+    // This is used to verify ZK Proofs and store/update nonces
+    accounts: HashMap<&'b PublicKey, Account<'b>>,
+    // Current topoheight of the snapshot
+    topoheight: TopoHeight,
+    // All contracts updated
+    contracts: HashMap<Cow<'b, Hash>, Option<(VersionedState, Option<Cow<'b, ContractModule>>)>>,
+    // Block header version
+    block_version: BlockVersion,
+}
+
+impl<'a> FinalizedChainState<'a> {
+    pub async fn apply_changes<S: Storage>(
+        mut self,
+        storage: &mut S,
+        past_emitted_supply: u64,
+        block_reward: u64,
+    ) -> Result<(), BlockchainError> {
+        trace!("apply finalized changes");
+
+        // Set the topoheight for the block
+        storage.set_topo_height_for_block(&self.block_hash, self.topoheight).await?;
+
+        // Apply transaction links
+        for (tx_hash, (linked_blocks, executed_in, contract)) in self.transactions_links {
+            trace!("linking tx {} to blocks", tx_hash);
+
+            let mut blocks = if storage.is_tx_linked_to_blocks(&tx_hash).await? {
+                storage.get_blocks_for_tx(&tx_hash).await?
+            } else {
+                Default::default()
+            };
+
+            blocks.extend(linked_blocks.into_iter().cloned());
+            storage.set_blocks_for_tx(&tx_hash, &blocks).await?;
+
+            if let Some(executed_in) = executed_in {
+                trace!("marking tx {} as executed in block {}", tx_hash, executed_in);
+                storage.mark_tx_as_executed_in_block(&tx_hash, &executed_in).await?;
+            }
+
+            if let Some(contract) = contract {
+                trace!("linking tx {} to contract {}", tx_hash, contract);
+                storage.add_tx_for_contract(&contract, &tx_hash).await?;
+            }
+        }
+
+        // Apply changes for sender accounts
+        for (key, account) in &mut self.accounts {
+            trace!("Saving nonce {} for {} at topoheight {}", account.nonce, key.as_address(storage.is_mainnet()), self.topoheight);
+            storage.set_last_nonce_to(key, self.topoheight, &account.nonce).await?;
+
+            // Save the multisig state if needed
+            if let Some((state, multisig)) = account.multisig.as_ref().filter(|(state, _)| state.should_be_stored()) {
+                trace!("Saving multisig for {} at topoheight {}", key.as_address(storage.is_mainnet()), self.topoheight);
+                let multisig = multisig.as_ref().map(|v| Cow::Borrowed(v));
+                let versioned = VersionedMultiSig::new(multisig, state.get_topoheight());
+                storage.set_last_multisig_to(key, self.topoheight, versioned).await?;
+            }
+
+            let balances = self.receiver_balances.entry(Cow::Borrowed(key)).or_insert_with(HashMap::new);
+            // Because account balances are only used to verify the validity of ZK Proofs, we can't store them
+            // We have to recompute the final balance for each asset using the existing current balance
+            // Otherwise, we could have a front running problem
+            // Example: Alice sends 100 to Bob, Bob sends 100 to Charlie
+            // But Bob built its ZK Proof with the balance before Alice's transaction
+            for (asset, echange) in account.assets.drain() {
+                trace!("{} {} updated for {} at topoheight {}", echange.version, asset, key.as_address(storage.is_mainnet()), self.topoheight);
+                let Echange { mut version, output_sum, output_balance_used, new_version, .. } = echange;
+                trace!("sender output sum: {:?}", output_sum.compress());
+                match balances.entry(Cow::Borrowed(asset)) {
+                    Entry::Occupied(mut o) => {
+                        trace!("{} already has a balance for {} at topoheight {}", key.as_address(storage.is_mainnet()), asset, self.topoheight);
+                        // We got incoming funds while spending some
+                        // We need to split the version in two
+                        // Output balance is the balance after outputs spent without incoming funds
+                        // Final balance is the balance after incoming funds + outputs spent
+                        // This is a necessary process for the following case:
+                        // Alice sends 100 to Bob in block 1000
+                        // But Bob build 2 txs before Alice, one to Charlie and one to David
+                        // First Tx of Blob is in block 1000, it will be valid
+                        // But because of Alice incoming, the second Tx of Bob will be invalid
+                        let final_version = o.get_mut();
+
+                        // We got input and output funds, mark it
+                        final_version.set_balance_type(BalanceType::Both);
+
+                        // We must build output balance correctly
+                        // For that, we use the same balance before any inputs
+                        // And deduct outputs
+                        // let clean_version = self.storage.get_new_versioned_balance(key, asset, self.topoheight).await?;
+                        // let mut output_balance = clean_version.take_balance();
+                        // *output_balance.computable()? -= &output_sum;
+
+                        // Determine which balance to use as next output balance
+                        // This is used in case TXs that are built at same reference, but
+                        // executed in differents topoheights have the output balance reported
+                        // to the next topoheight each time to stay valid during ZK Proof verification
+                        let output_balance = version.take_balance_with(output_balance_used);
+
+                        // Set to our final version the new output balance
+                        final_version.set_output_balance(Some(output_balance));
+
+                        // Build the final balance
+                        // All inputs are already added, we just need to substract the outputs
+                        let final_balance = final_version.get_mut_balance().computable()?;
+                        *final_balance -= output_sum;
+                    },
+                    Entry::Vacant(e) => {
+                        trace!("{} has no balance for {} at topoheight {}", key.as_address(storage.is_mainnet()), asset, self.topoheight);
+                        // We have no incoming update for this key
+                        // Select the right final version
+                        // For that, we must check if we used the output balance and/or if we are not on the last version 
+                        let version = if output_balance_used || !new_version {
+                            // We must fetch again the version to sum it with the output
+                            // This is necessary to build the final balance
+                            let (mut new_version, _) = storage.get_new_versioned_balance(key, asset, self.topoheight).await?;
+                            // Substract the output sum
+                            trace!("{} has no balance for {} at topoheight {}, substract output sum", key.as_address(storage.is_mainnet()), asset, self.topoheight);
+                            *new_version.get_mut_balance().computable()? -= output_sum;
+
+                            if self.block_version == BlockVersion::V0 {
+                                new_version.set_balance_type(BalanceType::Output);
+                            } else {
+                                // Report the output balance to the next topoheight
+                                // So the edge case where:
+                                // Balance at topo 1000 is referenced
+                                // Balance updated at topo 1001 as input
+                                // TX A is built with reference 1000 but executed at topo 1002
+                                // TX B reference 1000 but output balance is at topo 1002 and it include the final balance of (TX A + input at 1001)
+                                // So we report the output balance for next TX verification
+                                new_version.set_output_balance(Some(version.take_balance_with(output_balance_used)));
+                                new_version.set_balance_type(BalanceType::Both);
+                            }
+
+                            new_version
+                        } else {
+                            // Version was based on final balance, all good, nothing to do
+                            version.set_balance_type(BalanceType::Output);
+                            version
+                        };
+
+                        // We have some output, mark it
+
+                        e.insert(version);
+                    }
+                }
+            }
+        }
+
+        // Apply the assets
+        for (asset, changes) in self.contract_manager.assets {
+            if let Some(changes) = changes {
+                let (state, data) = changes.data;
+                if state.should_be_stored() {
+                    trace!("Saving asset {} at topoheight {}", asset, self.topoheight);
+                    storage.add_asset(&asset, self.topoheight, VersionedAssetData::new(data, state.get_topoheight())).await?;
+                }
+
+                let (state, supply) = changes.circulating_supply;
+                if state.should_be_stored() {
+                    trace!("Saving supply {} for {} at topoheight {} with prev {:?}", supply, asset, self.topoheight, state.get_topoheight());
+                    storage.set_last_circulating_supply_for_asset(&asset, self.topoheight, &VersionedSupply::new(supply, state.get_topoheight())).await?;
+                }
+            }
+        }
+
+        // Start by storing the contracts
+        debug!("Storing contracts");
+        for (hash, value) in self.contracts {
+            if let Some((state, module)) = value {
+                if state.should_be_stored() {
+                    trace!("Saving contract {} at topoheight {}", hash, self.topoheight);
+                    storage.set_last_contract_to(&hash, self.topoheight, &VersionedContractModule::new(module, state.get_topoheight())).await?;
+                }
+            }
+        }
+
+        debug!("Storing contract storage changes");
+        // Apply all the contract storage changes
+        for (contract, cache) in self.contract_manager.caches {
+            // Apply all storage changes
+            for (key, value) in cache.storage {
+                if let Some((state, value)) = value {
+                    if state.should_be_stored() {
+                        trace!("Saving contract data {} key {} at topoheight {}", contract, key, self.topoheight);
+                        storage.set_last_contract_data_to(&contract, &key, self.topoheight, &VersionedContractData::new(value, state.get_topoheight())).await?;
+                    }
+                }
+            }
+
+            for (asset, data) in cache.balances {
+                if let Some((state, balance)) = data {
+                    if state.should_be_stored() {
+                        trace!("Saving contract balance {} for {} at topoheight {}", balance, asset, self.topoheight);
+                        storage.set_last_contract_balance_to(&contract, &asset, self.topoheight, VersionedContractBalance::new(balance, state.get_topoheight())).await?;
+                    }
+                }
+            }
+        }
+
+        debug!("applying external transfers");
+        // Apply all the transfers to the receiver accounts
+        for (key, assets) in self.contract_manager.tracker.aggregated_transfers.iter() {
+            for (asset, amount) in assets {
+                trace!("Transfering {} {} to {} at topoheight {}", amount, asset, key.as_address(storage.is_mainnet()), self.topoheight);
+                let receiver_balance = match self.receiver_balances.entry(Cow::Borrowed(&key)).or_insert_with(HashMap::new).entry(Cow::Borrowed(asset)) {
+                    Entry::Occupied(o) => o.into_mut(),
+                    Entry::Vacant(e) => {
+                        let (version, _) = storage.get_new_versioned_balance(&key, &asset, self.topoheight).await?;
+                        e.insert(version)
+                    }
+                }.get_mut_balance().computable()?;
+
+                *receiver_balance += *amount;
+            }
+        }
+
+        // Apply all the contract outputs
+        debug!("storing contract outputs");
+        for (key, logs) in self.contract_manager.logs {
+            storage.set_contract_logs_for_caller(&key, &logs).await?;
+        }
+
+        // Apply all scheduled executions at their topoheight
+        debug!("applying scheduled executions at topoheights");
+        for hash in self.contract_manager.executions.at_topoheight {
+            let execution = self.contract_manager.executions.executions.get(&hash)
+                .ok_or(BlockchainError::Unknown)?;
+
+            if let ScheduledExecutionKind::TopoHeight(execution_topoheight) = execution.kind {
+                trace!("storing scheduled execution of contract {} with caller {} at topoheight {}", execution.contract, execution.hash, self.topoheight);
+                storage.set_contract_scheduled_execution_at_topoheight(&execution.contract, self.topoheight, &execution, execution_topoheight).await?;
+            } else {
+                warn!("scheduled execution {} kind mismatch, expected TopoHeight", execution.hash);
+            }
+        }
+
+        // Apply all event callback registrations
+        debug!("storing event callbacks registrations");
+        for ((contract, event_id), listeners) in self.contract_manager.events_listeners {
+            // Remove all previously processed for this event
+            // So in case it was registered, consumed, and re registered in the same block, we only keep the last one
+            let mut processed_listeners = self.contract_manager.events_processed.get_mut(&(contract.clone(), event_id));
+
+            for (listener_contract, callback) in listeners {
+                trace!("storing event callback registration for event {} of contract {} to listener {} at topoheight {}", event_id, contract, listener_contract, self.topoheight);
+                if processed_listeners.as_mut().map_or(false, |v| v.remove(&contract)) {
+                    trace!("removing previous event callback registrations for event {} of contract {} at topoheight {}", event_id, contract, self.topoheight);
+                }
+
+                let prev_topo = storage.get_event_callback_for_contract_at_maximum_topoheight(
+                    &contract,
+                    event_id,
+                    &listener_contract,
+                    self.topoheight,
+                ).await?
+                .map(|(topo, _)| topo);
+
+                storage.set_last_contract_event_callback(
+                    &contract,
+                    event_id,
+                    &listener_contract,
+                    Versioned::new(Some(callback), prev_topo),
+                    self.topoheight
+                ).await?;
+            }
+        }
+
+        for ((contract, event_id), listeners) in self.contract_manager.events_processed {
+            for listener_contract in listeners {
+                trace!("removing event callback registration for event {} of contract {} to listener {} at topoheight {}", event_id, contract, listener_contract, self.topoheight);
+                let prev_topo = storage.get_event_callback_for_contract_at_maximum_topoheight(
+                    &contract,
+                    event_id,
+                    &listener_contract,
+                    self.topoheight,
+                ).await?
+                .map(|(topo, _)| topo);
+
+                storage.set_last_contract_event_callback(
+                    &contract,
+                    event_id,
+                    &listener_contract,
+                    Versioned::new(None, prev_topo),
+                    self.topoheight
+                ).await?;
+            }
+        }
+
+        // Apply all balances changes at topoheight
+        // We injected the sender balances in the receiver balances previously
+        debug!("applying balances");
+        for (account, balances) in self.receiver_balances {
+            // If the account has no nonce set, set it to 0
+            if !self.accounts.contains_key(account.as_ref()) && !storage.has_nonce(&account).await? {
+                debug!("{} has now a balance but without any nonce registered, set default (0) nonce", account.as_address(storage.is_mainnet()));
+                storage.set_last_nonce_to(&account, self.topoheight, &VersionedNonce::new(0, None)).await?;
+            }
+
+            // Mark it as registered at this topoheight
+            if !storage.is_account_registered_for_topoheight(&account, self.topoheight).await? {
+                storage.set_account_registration_topoheight(&account, self.topoheight).await?;
+            }
+
+            for (asset, version) in balances {
+                trace!("Saving versioned balance {} for {} at topoheight {}", version, account.as_address(storage.is_mainnet()), self.topoheight);
+                storage.set_last_balance_to(&account, &asset, self.topoheight, &version).await?;
+            }
+        }
+
+        // Finally, update the topoheight metadata
+        debug!("updating topoheight metadata to {}", self.topoheight);
+        let emitted_supply = past_emitted_supply + block_reward;
+        let metadata = TopoHeightMetadata {
+            block_reward,
+            emitted_supply,
+            total_fees: self.total_fees,
+            total_fees_burned: self.total_fees_burned,
+        };
+
+        storage.set_metadata_at_topoheight(self.topoheight, metadata).await?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<'s, 'b, S: Storage> BlockchainVerificationState<'b, BlockchainError> for ApplicableChainState<'s, 'b, S> {
+    /// Verify the TX fee and returns, if required, how much we should refund from
+    /// `fee_limit` (left over of fees)
+    async fn handle_tx_fee<'c>(&'c mut self, tx: &Transaction, tx_hash: &Hash) -> Result<u64, BlockchainError> {
+        let tx_size = tx.size();
+        let (mut fees_paid, refund) = verify_fee(self.storage, tx, tx_size, self.topoheight, self.tx_base_fee, self.block_version).await?;
+        // Starting V3: burn a % of the extra base fee
+        if self.block_version >= BlockVersion::V3 {
+            // The extra base fee is (TX FEE PER KB - MIN. FEE PER KB)
+            let extra_base_fee = self.tx_base_fee - FEE_PER_KB;
+            let tx_extra_base_fee = extra_base_fee * tx_kb_size_rounded(tx.size()) as u64;
+            // The burned part is computed above the extra base fee
+            let burned_part = tx_extra_base_fee * EXTRA_BASE_FEE_BURN_PERCENT / 100;
+
+            // Remove the burned part from fee
+            fees_paid -= burned_part;
+
+            debug!(
+                "TX {} fees: {}, fees paid: {} XEL, computed TX base fee: {} XEL, extra base fee: {} XEL, burned part: {} XEL",
+                tx_hash,
+                format_dapa(tx.get_fee()),
+                format_dapa(fees_paid),
+                format_dapa(tx_extra_base_fee),
+                format_dapa(extra_base_fee),
+                format_dapa(burned_part),
+            );
+
+            // Burn a part of the fee
+            self.total_fees_burned += burned_part;
+        }
+
+        self.total_fees += fees_paid;
+
+        Ok(refund)
+    }
+
+    /// Pre-verify the TX
+    async fn pre_verify_tx<'c>(
+        &'c mut self,
+        tx: &Transaction,
+    ) -> Result<(), BlockchainError> {
+        self.inner.pre_verify_tx(tx).await
+    }
+
+    /// Get the balance ciphertext for a receiver account
+    async fn get_receiver_balance<'c>(
+        &'c mut self,
+        account: Cow<'b, PublicKey>,
+        asset: Cow<'b, Hash>,
+    ) -> Result<&'c mut Ciphertext, BlockchainError> {
+        self.inner.get_receiver_balance(account, asset).await
+    }
+
+    /// Get the balance ciphertext used for verification of funds for the sender account
+    async fn get_sender_balance<'c>(
+        &'c mut self,
+        account: &'b PublicKey,
+        asset: &'b Hash,
+        reference: &Reference,
+    ) -> Result<&'c mut Ciphertext, BlockchainError> {
+        self.inner.get_sender_balance(account, asset, reference).await
+    }
+
+    /// Apply new output to a sender account
+    async fn add_sender_output(
+        &mut self,
+        account: &'b PublicKey,
+        asset: &'b Hash,
+        output: Ciphertext,
+    ) -> Result<(), BlockchainError> {
+        self.inner.add_sender_output(account, asset, output).await
+    }
+
+    /// Get the nonce of an account
+    async fn get_account_nonce(
+        &mut self,
+        account: &'b PublicKey
+    ) -> Result<Nonce, BlockchainError> {
+        self.inner.get_account_nonce(account).await
+    }
+
+    async fn update_account_nonce(
+        &mut self,
+        account: &'b PublicKey,
+        new_nonce: Nonce
+    ) -> Result<(), BlockchainError> {
+        self.inner.update_account_nonce(account, new_nonce).await
+    }
+
+    /// Get the block version
+    fn get_block_version(&self) -> BlockVersion {
+        self.block_version
+    }
+
+    async fn set_multisig_state(
+        &mut self,
+        account: &'b PublicKey,
+        config: &MultiSigPayload
+    ) -> Result<(), BlockchainError> {
+        self.inner.set_multisig_state(account, config).await
+    }
+
+    async fn get_multisig_state(
+        &mut self,
+        account: &'b PublicKey
+    ) -> Result<Option<&MultiSigPayload>, BlockchainError> {
+        self.inner.get_multisig_state(account).await
+    }
+
+    async fn get_environment(&mut self, version: ContractVersion) -> Result<&Environment<ContractMetadata>, BlockchainError> {
+        self.inner.get_environment(version).await
+    }
+
+    async fn set_contract_module(
+        &mut self,
+        hash: &'b Hash,
+        module: &'b ContractModule
+    ) -> Result<(), BlockchainError> {
+        self.inner.set_contract_module(hash, module).await
+    }
+
+    async fn load_contract_module(
+        &mut self,
+        hash: Cow<'b, Hash>
+    ) -> Result<bool, BlockchainError> {
+        self.inner.load_contract_module(hash).await
+    }
+
+    async fn get_contract_module_with_environment(
+        &self,
+        hash: &'b Hash
+    ) -> Result<(&xelis_vm::Module, &Environment<ContractMetadata>), BlockchainError> {
+        self.inner.get_contract_module_with_environment(hash).await
+    }
+}
+
+#[async_trait]
+impl<'s, 'b, S: Storage> BlockchainApplyState<'b, S, BlockchainError> for ApplicableChainState<'s, 'b, S> {
+    /// Track burned supply
+    async fn add_burned_coins(&mut self, asset: &Hash, amount: u64) -> Result<(), BlockchainError> {
+        let changes = self.get_asset_changes_for(asset, false).await?;
+
+        let new_supply = changes.circulating_supply.1.checked_sub(amount)
+            .context("Circulating supply is lower than burn")?;
+
+        changes.circulating_supply.1 = new_supply;
+        changes.circulating_supply.0.mark_updated();
+
+        Ok(())
+    }
+
+    /// Track miner fees
+    async fn add_gas_fee(&mut self, amount: u64) -> Result<(), BlockchainError> {
+        self.gas_fee = self.gas_fee.checked_add(amount)
+            .ok_or(BlockchainError::GasOverflow)?;
+        Ok(())
+    }
+
+    /// Add burned DAPA fee
+    async fn add_burned_fee(&mut self, amount: u64) -> Result<(), BlockchainError> {
+        self.total_fees_burned += amount;
+        Ok(())
+    }
+
+    fn is_mainnet(&self) -> bool {
+        self.inner.storage.is_mainnet()
+    }
+}
+
+#[async_trait]
+impl<'s, 'b, S: Storage> BlockchainContractState<'b, S, BlockchainError> for ApplicableChainState<'s, 'b, S> {
+    async fn set_contract_logs(
+        &mut self,
+        caller: ContractCaller<'b>,
+        logs: Vec<ContractLog>
+    ) -> Result<(), BlockchainError> {
+        match self.contract_manager.logs.entry(caller.get_hash()) {
+            Entry::Occupied(mut o) => {
+                o.get_mut().extend(logs);
+            },
+            Entry::Vacant(e) => {
+                e.insert(logs);
+            }
+        };
+
+        Ok(())
+    }
+
+    async fn get_contract_environment_for<'c>(
+        &'c mut self,
+        contract_hash: Cow<'c, Hash>,
+        deposits: Option<&'c IndexMap<Hash, ContractDeposit>>,
+        caller: ContractCaller<'c>,
+        permission: Cow<'c, InterContractPermission>,
+    ) -> Result<(ContractEnvironment<'c, S>, ContractChainState<'c>), BlockchainError> {
+        debug!("get contract environments for contract {} from caller {}", contract_hash, caller.get_hash());
+
+        // Find the contract module in our cache
+        // We don't use the function `get_contract_module_with_environment` because we need to return the mutable storage
+        let contract = self.inner.internal_get_contract_module(&contract_hash).await?;
+
+        // Find the contract cache in our cache map
+        // We apply the deposits below in case we have any
+        let mut cache = self.contract_manager.caches.get(&contract_hash)
+            .cloned()
+            .unwrap_or_default();
+
+        // We need to add the deposits to the balances
+        if let Some(deposits) = deposits {
+            for (asset, deposit) in deposits.iter() {
+                match deposit {
+                    ContractDeposit::Public(amount) => match cache.balances.entry(asset.clone()) {
+                        Entry::Occupied(mut o) => match o.get_mut() {
+                            Some((mut state, balance)) => {
+                                state.mark_updated();
+                                *balance += amount;
+                            },
+                            None => {
+                                // Balance was already fetched and we didn't had any balance before
+                                o.insert(Some((VersionedState::New, *amount)));
+                            }
+                        },
+                        Entry::Vacant(e) => {
+                            debug!("loading balance {} for contract {} at maximum topoheight {}", asset, contract_hash, self.topoheight);
+                            let (mut state, balance) = self.storage.get_contract_balance_at_maximum_topoheight(&contract_hash, asset, self.topoheight).await?
+                                .map(|(topo, balance)| (VersionedState::FetchedAt(topo), balance.take()))
+                                .unwrap_or((VersionedState::New, 0));
+    
+                            state.mark_updated();
+                            e.insert(Some((state, balance + amount)));
+                        }
+                    },
+                    ContractDeposit::Private { .. } => {
+                        // TODO: we need to add the private deposit to the balance
+                    }
+                }
+            }
+        }
+
+        let mainnet = self.inner.storage.is_mainnet();
+
+        // We initialize the cache map with only the current contract
+        // because we've applied the deposits for it
+        let caches = [
+            (contract_hash.as_ref().clone(), cache)
+        ].into();
+
+        let state = ContractChainState {
+            // TODO: only available on non-mainnet networks & enabled by a config
+            debug_mode: !mainnet,
+            mainnet,
+            entry_contract: contract_hash,
+            topoheight: self.inner.topoheight,
+            block_hash: self.block_hash,
+            block: self.block,
+            caller,
+            logs: Vec::new(),
+            changes: ChainStateChanges {
+                caches,
+                // Event trackers
+                tracker: self.contract_manager.tracker.clone(),
+                // Assets cache owned by this contract
+                assets: self.contract_manager.assets.clone(),
+                ..Default::default()
+            },
+            global_modules: &self.inner.contracts,
+            // Global caches (all contracts)
+            global_caches: &self.contract_manager.caches,
+            // This is not shared across TXs, so we create
+            // a new empty map each time
+            // But the ordering is important, so IndexMap is used
+            injected_gas: IndexMap::new(),
+            // Scheduled executions for any topoheight
+            executions: ExecutionsManager {
+                global_executions: &self.contract_manager.executions.executions,
+                changes: Default::default(),
+                allow_executions: true,
+            },
+            permission,
+            gas_fee_allowance: 0,
+            environments: Cow::Borrowed(self.inner.environments),
+            loaded_modules: Default::default(),
+        };
+
+        let environment = self.environments.get(&contract.version)
+            .ok_or(BlockchainError::ContractEnvironmentNotFound(contract.version))?;
+
+        let contract_environment = ContractEnvironment {
+            environment,
+            module: &contract.module,
+            version: contract.version,
+            provider: self.inner.storage,
+        };
+
+        Ok((contract_environment, state))
+    }
+
+    /// Retrieve the contract balance used to pay gas
+    async fn get_contract_balance_for_gas<'c>(
+        &'c mut self,
+        contract: &'c Hash,
+    ) -> Result<&'c mut (VersionedState, u64), BlockchainError> {
+        debug!("get contract {} balance for gas", contract);
+
+        let cache = match self.contract_manager.caches.entry(contract.clone()) {
+            Entry::Occupied(o) => o.into_mut(),
+            Entry::Vacant(e) => e.insert(Default::default())
+        };
+
+        Ok(match cache.balances.entry(DAPA_ASSET) {
+            Entry::Occupied(e) => e.into_mut()
+                .as_mut()
+                .ok_or_else(|| BlockchainError::NoContractBalance)?,
+            Entry::Vacant(e) => {
+                debug!("loading gas balance for contract {} at maximum topoheight {}", contract, self.inner.topoheight);
+                let (mut state, balance) = self.inner.storage.get_contract_balance_at_maximum_topoheight(contract, &DAPA_ASSET, self.inner.topoheight).await?
+                    .map(|(topo, balance)| (VersionedState::FetchedAt(topo), balance.take()))
+                    .unwrap_or((VersionedState::New, 0));
+
+                state.mark_updated();
+                e.insert(None)
+                    .insert((state, balance))
+            }
+        })
+    }
+
+    async fn set_modules_cache(
+        &mut self,
+        modules: HashMap<Hash, Option<(VersionedState, Option<ContractModule>)>>,
+    ) -> Result<(), BlockchainError> {
+        for (hash, value) in modules {
+            debug!("set module cache for contract {}", hash);
+            self.inner.contracts.insert(
+                Cow::Owned(hash),
+                value.map(|(state, module)| (state, module.map(Cow::Owned)))
+            );
+        }
+
+        Ok(())
+    }
+
+    async fn merge_contract_changes(
+        &mut self,
+        changes: ChainStateChanges,
+        mut executions_changes: ExecutionsChanges,
+    ) -> Result<(), BlockchainError> {
+        for (contract, mut cache) in changes.caches {
+            cache.clean_up();
+
+            match self.contract_manager.caches.entry(contract) {
+                Entry::Occupied(mut o) => {
+                    let current = o.get_mut();
+                    *current = cache;
+                },
+                Entry::Vacant(e) => {
+                    e.insert(cache);
+                }
+            };
+        }
+
+        self.contract_manager.tracker = changes.tracker;
+        self.contract_manager.assets = changes.assets;
+
+        for (hash, execution) in executions_changes.executions {
+            self.contract_manager.executions.executions.insert(hash, execution);
+        }
+
+        self.contract_manager.executions.at_topoheight.append(&mut executions_changes.at_topoheight);
+        self.contract_manager.executions.block_end.append(&mut executions_changes.block_end);
+
+        self.contract_manager.events.extend(changes.events);
+
+        for (key, mut listeners) in changes.events_listeners {
+            match self.contract_manager.events_listeners.entry(key) {
+                Entry::Occupied(mut o) => {
+                    o.get_mut().append(&mut listeners);
+                },
+                Entry::Vacant(e) => {
+                    e.insert(listeners);
+                }
+            };
+        }
+
+        self.add_gas_fee(changes.extra_gas_fee).await?;
+
+        Ok(())
+    }
+
+    async fn remove_contract_module(
+        &mut self,
+        hash: &'b Hash
+    ) -> Result<(), BlockchainError> {
+        self.remove_contract_module_internal(hash).await
+    }
+
+    async fn post_contract_execution(
+        &mut self,
+        caller: &ContractCaller<'b>,
+        contract: &Hash,
+    ) -> Result<(), BlockchainError> {
+        trace!("post contract execution for caller {} on contract {}", caller.get_hash(), contract);
+        self.execute_callback_events(caller.get_hash().as_ref()).await
+    }
+}
+
+impl<'s, 'b, S: Storage> Deref for ApplicableChainState<'s, 'b, S> {
+    type Target = ChainState<'s, 'b, S>;
+
+    fn deref(&self) -> &ChainState<'s, 'b, S> {
+        &self.inner
+    }
+}
+
+impl<'s, 'b, S: Storage> DerefMut for ApplicableChainState<'s, 'b, S> {
+    fn deref_mut(&mut self) -> &mut ChainState<'s, 'b, S> {
+        &mut self.inner
+    }
+}
+
+impl<'s, 'b, S: Storage> AsRef<ChainState<'s, 'b, S>> for ApplicableChainState<'s, 'b, S> {
+    fn as_ref(&self) -> &ChainState<'s, 'b, S> {
+        &self.inner
+    }
+}
+
+impl<'s, 'b, S: Storage> AsMut<ChainState<'s, 'b, S>> for ApplicableChainState<'s, 'b, S> {
+    fn as_mut(&mut self) -> &mut ChainState<'s, 'b, S> {
+        &mut self.inner
+    }
+}
+
+impl<'s, 'b, S: Storage> ApplicableChainState<'s, 'b, S> {
+    pub fn new(
+        storage: &'s S,
+        environments: &'s ContractEnvironments,
+        stable_topoheight: TopoHeight,
+        topoheight: TopoHeight,
+        block_version: BlockVersion,
+        block_hash: &'b Hash,
+        block: &'b Block,
+        tx_base_fee: u64,
+        base_height: u64,
+    ) -> Self {
+        Self {
+            inner: ChainState::with(
+                storage,
+                environments,
+                stable_topoheight,
+                topoheight,
+                block_version,
+                tx_base_fee,
+                base_height,
+            ),
+            total_fees: 0,
+            total_fees_burned: 0,
+            contract_manager: ContractManager::default(),
+            block_hash,
+            block,
+            transactions_links: HashMap::new(),
+        }
+    }
+
+    // Returns if the TX was already executed
+    #[inline]
+    pub fn link_tx_to_block(&mut self, tx_hash: &'b Hash, block_hash: &'b Hash, contract: Option<&'b Hash>) -> bool {
+        let (set, executed, contract_called) = self.transactions_links.entry(tx_hash)
+            .or_insert_with(|| (IndexSet::new(), None, None));
+
+        set.insert(block_hash);
+        if let Some(contract) = contract {
+            *contract_called = Some(contract);
+        }
+
+        executed.is_some()
+    }
+
+    // Mark the TX as executed in the given block
+    #[inline]
+    pub fn mark_tx_as_executed_in_block(&mut self, tx_hash: &'b Hash, block_hash: &'b Hash) -> Result<(), BlockchainError> {
+        let (set, executed, _) = self.transactions_links.get_mut(tx_hash)
+            .ok_or(BlockchainError::Unknown)?;
+
+        set.insert(block_hash);
+
+        if executed.is_some() {
+            return Err(BlockchainError::TransactionAlreadyExecuted(tx_hash.clone()));
+        }
+
+        *executed = Some(block_hash);
+
+        Ok(())
+    }
+
+    // total fees to be paid to the miner
+    #[inline]
+    pub fn get_total_fees(&self) -> u64 {
+        self.total_fees
+    }
+
+    // Load the asset changes for supply changes
+    pub async fn get_asset_changes_for(&mut self, asset: &Hash, default: bool) -> Result<&mut AssetChanges, BlockchainError> {
+        match self.contract_manager.assets.entry(asset.clone()) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let topoheight = self.inner.topoheight;
+                let changes = match self.inner.storage.get_asset_at_maximum_topoheight(asset, topoheight).await? {
+                    Some((topo, data)) => {
+                        let (supply_state, supply) = match self.inner.storage.get_circulating_supply_for_asset_at_maximum_topoheight(asset, topoheight).await? {
+                            Some((topo, supply)) => (VersionedState::FetchedAt(topo), supply.take()),
+                            None => {
+                                // if default is not enabled,
+                                // return an error about supply
+                                if !default {
+                                    return Err(BlockchainError::NoCirculatingSupply(asset.clone()))
+                                }
+
+                                (VersionedState::New, 0)
+                            }
+                        };
+
+                        Some(AssetChanges {
+                            data: (VersionedState::FetchedAt(topo), data.take()),
+                            circulating_supply: (supply_state, supply),
+                        })
+                    },
+                    None => None
+                };
+
+                entry.insert(changes)
+            }
+        }.as_mut().ok_or_else(|| BlockchainError::AssetNotFound(asset.clone()))
+    }
+
+    // Get the contracts cache
+    pub fn get_contracts_cache(&self) -> &HashMap<Hash, ContractCache> {
+        &self.contract_manager.caches
+    }
+
+    // Get the contract tracker
+    pub fn get_contract_tracker(&self) -> &ContractEventTracker {
+        &self.contract_manager.tracker
+    } 
+
+    // Get the contract outputs for TX
+    pub fn get_contract_logs_for_tx(&self, tx_hash: &Hash) -> Option<&Vec<ContractLog>> {
+        self.contract_manager.logs.get(tx_hash)
+    }
+
+    async fn remove_contract_module_internal(
+        &mut self,
+        hash: &'b Hash
+    ) -> Result<(), BlockchainError> {
+        debug!("Removing contract module for contract {}", hash);
+
+        let (state, contract) = self.inner.internal_get_versioned_contract(Cow::Borrowed(hash)).await?
+            .as_mut()
+            .ok_or_else(|| BlockchainError::ContractNotFound(hash.clone()))?;
+
+        state.mark_updated();
+        *contract = None;
+
+        Ok(())
+    }
+
+    // Execute all the callback events registered during contract executions
+    async fn execute_callback_events(&mut self, caller: &Hash) -> Result<(), BlockchainError> {
+        debug!("executing callback events after processing execution {}", caller);
+
+        while let Some(event) = self.contract_manager.events.pop_front() {
+            debug!("executing event callback {} for contract {}", event.event_id, event.contract);
+
+            // If we've already processed those from storage, we must handle those pending in memory
+            let contract_key = (event.contract.clone(), event.event_id);
+            let callbacks = match self.contract_manager.events_processed.entry(contract_key.clone()) {
+                Entry::Occupied(_) => {
+                    debug!("event {} for contract {} already processed from storage, getting pending callbacks from memory", event.event_id, event.contract);
+                    // we don't need to include them into our processed list, because we just delete them from registrations
+                    self.contract_manager.events_listeners.remove(&contract_key)
+                        .unwrap_or_default()
+                },
+                Entry::Vacant(entry) => {
+                    debug!("event {} for contract {} already processed, skipping", event.event_id, event.contract);
+                    let topoheight = self.inner.topoheight;
+                    let mut callbacks = self.inner.storage.get_event_callbacks_available_at_maximum_topoheight(&event.contract, event.event_id, topoheight).await?
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    // Sort by contract hash to have a deterministic order
+                    callbacks.sort_by(|a, b| a.0.cmp(&b.0));
+
+                    entry.insert(
+                        callbacks.iter()
+                            .map(|(contract, _)| contract.clone())
+                            .collect()
+                    );
+
+                    callbacks
+                }
+            };
+
+            for (contract, callback) in callbacks {
+                debug!("processing event callback of {}", contract);
+                self.process_execution(
+                    Cow::Owned(event.contract.clone()),
+                    ContractCaller::EventCallback(Cow::Owned(caller.clone()), Cow::Owned(event.contract.clone())),
+                    // Gas source is the contract being called
+                    [(Source::Contract(contract.clone()), callback.max_gas)].into_iter().collect(),
+                    callback.max_gas,
+                    callback.chunk_id,
+                    event.params.iter().map(|v| v.deep_clone()),
+                    // disable the post hook execution to prevent stack overflow
+                    false,
+                ).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    // Execute the given list of scheduled executions
+    async fn process_execution(
+        &mut self,
+        contract: Cow<'b, Hash>,
+        caller: ContractCaller<'b>,
+        gas_sources: IndexMap<Source, u64>,
+        max_gas: u64,
+        chunk_id: u16,
+        params: impl DoubleEndedIterator<Item = ValueCell> + ExactSizeIterator,
+        post_hook: bool,
+    ) -> Result<(), BlockchainError> {
+        debug!("processing scheduled execution of contract {} with caller {}", contract, caller.get_hash());
+
+        if !self.load_contract_module(contract.clone()).await? {
+            warn!("failed to load contract module for scheduled execution of contract {} with caller {}", contract, caller.get_hash());
+            return Ok(());
+        }
+
+        if let Err(e) = vm::invoke_contract(
+            caller.clone(),
+            self,
+            contract.clone(),
+            None,
+            params,
+            gas_sources,
+            max_gas,
+            InvokeContract::Chunk(chunk_id, false),
+            Cow::Owned(InterContractPermission::All),
+            post_hook,
+        ).await {
+            warn!("failed to process execution of contract {} with caller {}: {}", contract, caller.get_hash(), e);
+        }
+
+        Ok(())
+    }
+
+    // Execute all the block end scheduled executions
+    pub async fn process_executions_at_block_end(&mut self) -> Result<(), BlockchainError> {
+        trace!("process executions at block end");
+
+        // We loop over it,
+        // Contract can't re define a block at end execution
+        // But it is used by the listener events callbacks
+        loop {
+            let executions = std::mem::take(&mut self.contract_manager.executions.block_end);
+            if executions.is_empty() {
+                debug!("no more block end scheduled executions to process");
+                break;
+            }
+
+            for execution in executions {
+                let execution = self.contract_manager.executions.executions.remove(&execution)
+                    .ok_or(BlockchainError::Unknown)?;
+
+                self.process_execution(
+                    Cow::Owned(execution.contract.clone()),
+                    ContractCaller::Scheduled(Cow::Owned(execution.hash.as_ref().clone()), Cow::Owned(execution.contract.clone())),
+                    execution.gas_sources,
+                    execution.max_gas,
+                    execution.chunk_id,
+                    execution.params.into_iter(),
+                    true,
+                ).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    // Execute all scheduled executions for current topoheight
+    pub async fn process_scheduled_executions(&mut self) -> Result<(), BlockchainError> {
+        trace!("process executions at block end");
+
+        let topoheight = self.inner.topoheight;
+
+        let mut executions = self.storage.get_contract_scheduled_executions_for_execution_topoheight(topoheight).await?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        executions.sort();
+
+        for hash in executions.iter() {
+            let execution = self.storage.get_contract_scheduled_execution_at_topoheight(hash, topoheight).await?;
+
+            self.process_execution(
+                Cow::Owned(execution.contract.clone()),
+                ContractCaller::Scheduled(Cow::Owned(execution.hash.as_ref().clone()), Cow::Owned(execution.contract.clone())),
+                execution.gas_sources,
+                execution.max_gas,
+                execution.chunk_id,
+                execution.params.into_iter(),
+                true,
+            ).await?;
+        }
+
+        debug!("finished processing {} scheduled executions for topoheight {}", executions.len(), topoheight);
+
+        Ok(())
+    }
+
+    // This function is called after the verification of all needed transactions
+    // This will consume ChainState and apply all changes to the storage
+    // In case of incoming and outgoing transactions in same state, the final balance will be computed
+    pub async fn finalize(mut self) -> Result<FinalizedChainState<'b>, BlockchainError> {
+        trace!("apply changes");
+
+        // Copy the value to prevent immutable borrow
+        let total_fees_burned = self.total_fees_burned;
+        // if we have some burned fees, reduce it from supply
+        if total_fees_burned > 0 {
+            self.add_burned_coins(&DAPA_ASSET, total_fees_burned).await?;
+        }
+
+        Ok(FinalizedChainState {
+            block_hash: self.block_hash,
+            contract_manager: self.contract_manager,
+            total_fees: self.total_fees + self.inner.gas_fee,
+            total_fees_burned: self.total_fees_burned,
+            transactions_links: self.transactions_links,
+            receiver_balances: self.inner.receiver_balances,
+            accounts: self.inner.accounts,
+            topoheight: self.inner.topoheight,
+            contracts: self.inner.contracts,
+            block_version: self.inner.block_version,
+        })
+    }
+}

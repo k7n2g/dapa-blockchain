@@ -1,0 +1,391 @@
+use lazy_static::lazy_static;
+use dapa_common::{
+    api::daemon::{DevFeeThreshold, HardFork},
+    block::BlockVersion,
+    config::BYTES_PER_KB,
+    crypto::{
+        Address,
+        Hash,
+        PublicKey
+    },
+    difficulty::Difficulty,
+    network::Network,
+    time::TimestampSeconds,
+    static_assert,
+};
+
+pub const DEV_ADDRESS: &str = "dap:vnytpjcq8z84prl46wtn7hdrqvu823dzvss7aj6fm4jjxqtxsa9qqz9lrvx";
+
+// In case of potential forks, have a unique network id to not connect to others compatible chains
+pub const NETWORK_ID_SIZE: usize = 16;
+// NEW NETWORK ID FOR RELAUNCH - Changed to prevent connecting to old chain nodes
+pub const NETWORK_ID: [u8; NETWORK_ID_SIZE] = [0x44, 0x41, 0x50, 0x41, 0x56, 0x32, 0x30, 0x32, 0x35, 0x02, 0x02, 0x20, 0x25, 0xda, 0xda, 0x01];
+
+// bind addresses
+pub const DEFAULT_P2P_BIND_ADDRESS: &str = "0.0.0.0:20100";
+pub const DEFAULT_RPC_BIND_ADDRESS: &str = "0.0.0.0:20101";
+
+// Default cache size for storage DB
+pub const DEFAULT_CACHE_SIZE: usize = 1024;
+
+// Block rules
+// Millis per second, it is used to prevent having random 1000 values anywhere
+pub const MILLIS_PER_SECOND: u64 = 1000;
+
+// Constants for hashrate
+// Used for difficulty calculation
+// and to be easier to read
+pub const HASH: u64 = 1;
+pub const KILO_HASH: u64 = HASH * 1000;
+pub const MEGA_HASH: u64 = KILO_HASH * 1000;
+pub const GIGA_HASH: u64 = MEGA_HASH * 1000;
+pub const TERA_HASH: u64 = GIGA_HASH * 1000;
+
+// Minimum difficulty is calculated the following (each difficulty point is in H/s)
+// BLOCK TIME in millis * N = minimum hashrate
+// This is to prevent spamming the network with low difficulty blocks
+// and is only active on mainnet
+// Currently set to 20 KH/s
+pub const MAINNET_MINIMUM_HASHRATE: u64 = 20 * KILO_HASH;
+// Testnet & Devnet minimum hashrate
+// Currently set to 2 KH/s
+pub const DEFAULT_MINIMUM_HASHRATE: u64 = 2 * KILO_HASH;
+
+// This is also used as testnet and devnet minimum difficulty
+pub const GENESIS_BLOCK_DIFFICULTY: Difficulty = Difficulty::from_u64(1 * HASH);
+
+// 2 seconds maximum in future (prevent any attack on reducing difficulty but keep margin for unsynced devices)
+pub const TIMESTAMP_IN_FUTURE_LIMIT: TimestampSeconds = 2 * MILLIS_PER_SECOND;
+
+// keep at least last N blocks until top topoheight when pruning the chain
+// WARNING: This must be at least 50 blocks for difficulty adjustement
+pub const PRUNE_SAFETY_LIMIT: u64 = 80;
+
+// BlockDAG rules
+// in how many height we consider the block stable
+pub const STABLE_LIMIT: u64 = 8;
+// Maximum height difference allowed between a block and its tips
+pub const MAX_TIP_HEIGHT_DIFFERENCE: u64 = 8;
+// DAA window size
+// Number of blocks to consider for difficulty adjustment algorithm
+pub const DAA_WINDOW: u64 = 50;
+
+pub const fn get_stable_limit(version: BlockVersion) -> u64 {
+    match version {
+        BlockVersion::V0 | BlockVersion::V1 | BlockVersion::V2 => 8,
+        BlockVersion::V3 | BlockVersion::V4 | BlockVersion::V5 | BlockVersion::V6 => 24,
+    }
+}
+
+// Emission rules
+// 15% (6 months), 10% (6 months), 5% per block going to dev address
+// NOTE: The explained emission above was the expected one
+// But due to a bug in the function to calculate the dev fee reward,
+// the actual emission was directly set to 10% per block
+// New emission rules are: 10% during 1.5 years, then 5% for the rest
+// This is the same for the project but reduce a bit the mining cost as they earn 5% more
+pub const DEV_FEES: [DevFeeThreshold; 2] = [
+    // Activated for blocks
+    DevFeeThreshold {
+        height: 0,
+        fee_percentage: 25
+    },
+    // Activated for the rest
+     DevFeeThreshold {
+        // reduced to 3%
+        //* variables block time        
+        height: 14_545, 
+        fee_percentage: 3
+    }
+];
+// only 30% of reward for side block
+// This is to prevent spamming side blocks
+// and also give rewards for miners with valid work on main chain
+pub const SIDE_BLOCK_REWARD_PERCENT: u64 = 30;
+// maximum 3 blocks for side block reward
+// Each side block reward will be divided by the number of side blocks * 2
+// With a configuration of 3 blocks, we have the following percents:
+// 1 block: 30%
+// 2 blocks: 15%
+// 3 blocks: 7%
+// 4 blocks: minimum percentage set below
+pub const SIDE_BLOCK_REWARD_MAX_BLOCKS: u64 = 3;
+// minimum 5% of block reward for side block
+// This is the minimum given for all others valid side blocks
+pub const SIDE_BLOCK_REWARD_MIN_PERCENT: u64 = 5;
+// Emission speed factor for the emission curve
+// It is used to calculate based on the supply the block reward
+pub const EMISSION_SPEED_FACTOR: u64 = 20;
+
+// 50 million coins premined to block height 1 for system liquidity
+pub const PREMINE_AMOUNT: u64 = 52_000_000 * 100_000_000; // 50M coins in atomic units
+pub const PREMINE_ADDRESS: &str = "dap:vnytpjcq8z84prl46wtn7hdrqvu823dzvss7aj6fm4jjxqtxsa9qqz9lrvx"; // Dev address
+
+// minimum X seconds between each chain sync request per peer
+pub const CHAIN_SYNC_DELAY: u64 = 1;
+// wait maximum between each chain sync request to peers
+// 15s
+pub const CHAIN_SYNC_TIMEOUT_SECS: u64 = 15;
+// first 30 blocks are sent in linear way, then it's exponential
+pub const CHAIN_SYNC_REQUEST_EXPONENTIAL_INDEX_START: usize = 30;
+// allows up to X blocks id (hash + height) sent for request
+pub const CHAIN_SYNC_REQUEST_MAX_BLOCKS: usize = 64;
+// minimum X blocks hashes sent for response
+pub const CHAIN_SYNC_RESPONSE_MIN_BLOCKS: usize = 512;
+// Default response blocks sent/accepted
+pub const CHAIN_SYNC_DEFAULT_RESPONSE_BLOCKS: usize = 4096;
+// allows up to X blocks hashes sent for response
+pub const CHAIN_SYNC_RESPONSE_MAX_BLOCKS: usize = u16::MAX as _;
+// average block time is calculated on the last N topoheight
+pub const CHAIN_AVERAGE_BLOCK_TIME_N: u64 = 50;
+
+// P2p rules
+// time between each ping
+pub const P2P_PING_DELAY: u64 = 10;
+// time in seconds between each update of peerlist
+pub const P2P_PING_PEER_LIST_DELAY: u64 = 60 * 5;
+// maximum number of addresses to be send
+pub const P2P_PING_PEER_LIST_LIMIT: usize = 16;
+// default number of maximum peers
+pub const P2P_DEFAULT_MAX_PEERS: usize = 32;
+// default number of maximum outgoing peers
+pub const P2P_DEFAULT_MAX_OUTGOING_PEERS: usize = 8;
+// time in seconds between each time we try to connect to a new peer
+pub const P2P_EXTEND_PEERLIST_DELAY: u64 = 60;
+// time in seconds between each time we try to connect to a outgoing peer
+// At least 5 minutes of countdown to retry to connect to the same peer
+// This will be multiplied by the number of fails
+pub const P2P_PEERLIST_RETRY_AFTER: u64 = 60 * 15;
+// Delay in second to connect to priority nodes
+pub const P2P_AUTO_CONNECT_PRIORITY_NODES_DELAY: u64 = 5;
+// Default number of concurrent tasks for incoming p2p connections
+pub const P2P_DEFAULT_CONCURRENCY_TASK_COUNT_LIMIT: usize = 4;
+// Heartbeat interval in seconds to check if peer is still alive
+pub const P2P_HEARTBEAT_INTERVAL: u64 = P2P_PING_DELAY / 2;
+// Timeout in seconds
+// If we didn't receive any packet from a peer during this time, we disconnect it
+pub const P2P_PING_TIMEOUT: u64 = P2P_PING_DELAY * 6;
+
+// Peer rules
+// number of seconds to reset the counter
+// Set to 30 minutes
+pub const PEER_FAIL_TIME_RESET: u64 = 30 * 60;
+// number of fail to disconnect the peer
+pub const PEER_FAIL_LIMIT: u8 = 50;
+// number of fail during handshake before temp ban
+pub const PEER_FAIL_TO_CONNECT_LIMIT: u8 = 3;
+// number of seconds to temp ban the peer in case of fail reached during handshake
+// It is only used for incoming connections
+// Set to 1 minute
+pub const PEER_TEMP_BAN_TIME_ON_CONNECT: u64 = 60;
+// number of seconds to temp ban the peer in case of fail count limit (`PEER_FAIL_LIMIT`) reached
+// Set to 15 minutes
+pub const PEER_TEMP_BAN_TIME: u64 = 15 * 60;
+// millis until we timeout
+pub const PEER_TIMEOUT_REQUEST_OBJECT: u64 = 15_000;
+// How many objects requests can be concurrently requested?
+pub const PEER_OBJECTS_CONCURRENCY: usize = 64;
+// millis until we timeout during a bootstrap request
+pub const PEER_TIMEOUT_BOOTSTRAP_STEP: u64 = 60_000;
+// millis until we timeout during a handshake
+pub const PEER_TIMEOUT_INIT_CONNECTION: u64 = 5_000;
+// millis until we timeout during outgoing connection try
+pub const PEER_TIMEOUT_INIT_OUTGOING_CONNECTION: u64 = 30_000;
+// millis until we timeout during a handshake
+pub const PEER_TIMEOUT_DISCONNECT: u64 = 1_500;
+// Maximum packet size set to 5 MiB
+pub const PEER_MAX_PACKET_SIZE: u32 = 5 * (BYTES_PER_KB * BYTES_PER_KB) as u32;
+// Peer TX cache size
+// This is how many elements are stored in the LRU cache at maximum
+pub const PEER_TX_CACHE_SIZE: usize = 1024;
+// How many peers propagated are stored per peer in the LRU cache at maximum
+pub const PEER_PEERS_CACHE_SIZE: usize = 1024;
+// Peer Block cache size
+pub const PEER_BLOCK_CACHE_SIZE: usize = 1024;
+// Peer packet channel size
+pub const PEER_PACKET_CHANNEL_SIZE: usize = 1024;
+// Peer timeout for packet channel
+// Millis
+pub const PEER_SEND_BYTES_TIMEOUT: u64 = 3_000;
+
+// Hard Forks configured
+const HARD_FORKS: [HardFork; 6] = [
+HardFork {
+        height: 0,
+        version: BlockVersion::V0,
+        changelog: "Initial version",
+        version_requirement: None
+    },
+    HardFork {
+        // Expected date: 10/07/2024 12am UTC
+        height: 0,
+        version: BlockVersion::V1,
+        changelog: "xelis-hash v2",
+        version_requirement: Some(">=1.13.0")
+    },
+    HardFork {
+        // Expected date: 30/12/2024 9pm UTC
+        height: 0,
+        version: BlockVersion::V2,
+        changelog: "MultiSig, P2P",
+        version_requirement: Some(">=1.16.0")
+    },
+    HardFork {
+        // Expected date: 13/12/2025 5pm UTC
+        height: 0,
+        version: BlockVersion::V3,
+        changelog: "Smart Contracts, xelis-hash v3, 5s block time",
+        version_requirement: Some(">=1.19.0")
+    },
+    HardFork {
+        // Expected date: 18/12/2025 ~10pm UTC
+        height: 0,
+        version: BlockVersion::V4,
+        changelog: "Reference TX & BlockDAG improvements",
+        version_requirement: Some(">=1.20.0")
+    },
+    HardFork {
+        // Expected date: 19/12/2025 ~11pm UTC
+        height: 0,
+        version: BlockVersion::V5,
+        changelog: "TX Base fee improvements",
+        version_requirement: Some(">=1.21.0")
+    }
+];
+
+// Testnet / Stagenet / Devnet hard forks
+const OTHERS_NETWORK_HARD_FORKS: [HardFork; 6] = [
+    HardFork {
+        height: 0,
+        version: BlockVersion::V0,
+        changelog: "Initial version",
+        version_requirement: None
+    },
+    HardFork {
+        height: 0,
+        version: BlockVersion::V1,
+        changelog: "xelis-hash v2",
+        version_requirement: Some(">=1.13.0")
+    },
+    HardFork {
+        height: 0,
+        version: BlockVersion::V2,
+        changelog: "MultiSig, P2P",
+        version_requirement: Some(">=1.16.0")
+    },
+    HardFork {
+        height: 0,
+        version: BlockVersion::V3,
+        changelog: "Smart Contracts, xelis-hash v3, 5s block time",
+        version_requirement: Some(">=1.19.0")
+    },
+    HardFork {
+        height: 0,
+        version: BlockVersion::V4,
+        changelog: "Reference TX & BlockDAG improvements",
+        version_requirement: Some(">=1.20.0")
+    },
+    HardFork {
+        height: 0,
+        version: BlockVersion::V5,
+        changelog: "TX Base fee improvements",
+        version_requirement: Some(">=1.21.0")
+    }
+];
+
+
+
+
+
+
+
+
+// Mainnet seed nodes
+const MAINNET_SEED_NODES: [&str; 3] = [
+    // France
+    "185.198.27.165:20100",
+    // Germany
+    "45.84.138.159:20100",
+    //singapore
+    "194.163.189.149:20100"
+];
+
+// Testnet seed nodes
+const TESTNET_SEED_NODES: [&str; 0] = [
+   
+];
+
+// Genesis block to have the same starting point for every nodes
+// NEW GENESIS BLOCK for DAPA V3 - All features enabled from genesis
+// Generated Feb 7, 2026 with hardforks at height 0
+const MAINNET_GENESIS_BLOCK: &str = "0500000000000000000000019c39e6b6c20000000000000000000000000000000000000000000000000000000000000000000000000000000000000064c8b0cb00388f508ff5d3973f5da303387545a26421eecb49dd65230166874a";
+const TESTNET_GENESIS_BLOCK: &str = "0500000000000000000000019c39e6b6c20000000000000000000000000000000000000000000000000000000000000000000000000000000000000064c8b0cb00388f508ff5d3973f5da303387545a26421eecb49dd65230166874a";
+
+// Genesis block hash
+// Hash: 2e72b63133768b3c814183f3413473732fdd823bb6d3f5b15c322817991c9aeb
+const MAINNET_GENESIS_BLOCK_HASH: Hash = Hash::new([46, 114, 182, 49, 51, 118, 139, 60, 129, 65, 131, 243, 65, 52, 115, 115, 47, 221, 130, 59, 182, 211, 245, 177, 92, 50, 40, 23, 153, 28, 154, 235]);
+const TESTNET_GENESIS_BLOCK_HASH: Hash = Hash::new([46, 114, 182, 49, 51, 118, 139, 60, 129, 65, 131, 243, 65, 52, 115, 115, 47, 221, 130, 59, 182, 211, 245, 177, 92, 50, 40, 23, 153, 28, 154, 235]);
+
+
+// Genesis block getter
+// This is necessary to prevent having the same Genesis Block for differents network
+// Now using the generated genesis block for all nodes to sync
+pub fn get_hex_genesis_block(network: &Network) -> Option<&str> {
+    match network {
+        Network::Mainnet => Some(MAINNET_GENESIS_BLOCK),
+        Network::Testnet | Network::Stagenet => Some(TESTNET_GENESIS_BLOCK),
+        Network::Devnet => None  
+    }
+}
+
+lazy_static! {
+    // Developer public key is lazily converted from address to support any network
+    pub static ref DEV_PUBLIC_KEY: PublicKey = Address::from_string(&DEV_ADDRESS)
+        .expect("valid dev address")
+        .to_public_key();
+}
+
+// Genesis block hash based on network selected
+pub fn get_genesis_block_hash(network: &Network) -> Option<&'static Hash> {
+    match network {
+        Network::Mainnet => Some(&MAINNET_GENESIS_BLOCK_HASH),
+        Network::Testnet | Network::Stagenet => Some(&TESTNET_GENESIS_BLOCK_HASH),
+        Network::Devnet => None
+    }
+}
+
+// Get seed nodes based on the network used
+pub const fn get_seed_nodes(network: &Network) -> &[&str] {
+    match network {
+        Network::Mainnet => &MAINNET_SEED_NODES,
+        Network::Testnet => &TESTNET_SEED_NODES,
+        Network::Stagenet => &[],
+        Network::Devnet => &[],
+    }
+}
+
+// Get hard forks based on the network
+pub const fn get_hard_forks(network: &Network) -> &'static [HardFork] {
+    match network {
+        Network::Mainnet => &HARD_FORKS,
+        _ => &OTHERS_NETWORK_HARD_FORKS,
+    }
+}
+
+// Static checks
+static_assert!(
+    CHAIN_SYNC_RESPONSE_MAX_BLOCKS >= CHAIN_SYNC_RESPONSE_MIN_BLOCKS,
+    "Chain sync response max blocks must be greater than or equal to min blocks"
+);
+static_assert!(
+    CHAIN_SYNC_DEFAULT_RESPONSE_BLOCKS >= CHAIN_SYNC_RESPONSE_MIN_BLOCKS,
+    "Chain sync default response blocks must be greater than or equal to min blocks"
+);
+static_assert!(
+    CHAIN_SYNC_DEFAULT_RESPONSE_BLOCKS <= CHAIN_SYNC_RESPONSE_MAX_BLOCKS,
+    "Chain sync default response blocks must be less than or equal to max blocks"
+);
+static_assert!(
+    CHAIN_SYNC_RESPONSE_MAX_BLOCKS <= u16::MAX as usize,
+    "Chain sync response max blocks must be less than or equal to u16::MAX"
+);

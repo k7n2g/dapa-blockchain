@@ -1,0 +1,119 @@
+[package]
+name = "dapa_common"
+version = "1.21.3"
+edition = "2021"
+authors = ["Slixe <slixeprivate@gmail.com>"]
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+xelis-hash = { git = "https://github.com/xelis-project/xelis-hash", branch = "master" }
+xelis-vm = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev", features = ["logging"] }
+xelis-types = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev" }
+xelis-builder = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev" }
+xelis-bytecode = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev" }
+bulletproofs = { git = "https://github.com/xelis-project/bulletproofs", tag = "v5.0.2" }
+curve25519-dalek = { features = ["digest", "group", "rand_core", "serde", "ecdlp"], git = "https://github.com/xelis-project/curve25519-dalek", tag = "v4.2.0" }
+merlin = { git = "https://github.com/xelis-project/merlin", tag = "v3.1.0" }
+blake3 = "1.5.1"
+zeroize = "1.7.0"
+sha3 = "0.10.8"
+fern = { version = "0.7.1", features = ["colored", "date-based"] }
+
+reqwest = { version = "0.11.27", default-features = false, features = ["json"], optional = true }
+crossterm = { version = "0.29.0", optional = true }
+actix-rt = { version = "2.9.0", optional = true }
+actix-ws = { version = "0.3.0", optional = true }
+zip = { version = "4", features = ["zstd"], default-features = false, optional = true }
+pin-project-lite = { version = "0.2.16", optional = true }
+console-subscriber = { version = "0.4.1", optional = true }
+
+# WebSocket support
+tokio-tungstenite-wasm = { workspace = true, optional = true }
+
+lazy_static = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chacha20poly1305 = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+rand = { workspace = true }
+indexmap = { workspace = true }
+async-trait = { workspace = true }
+cfg-if = { workspace = true }
+metrics = { workspace = true }
+schemars = { workspace = true }
+
+chrono = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+actix-web = { workspace = true, optional = true }
+futures-util = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+
+# Query system
+regex = "1"
+# Query system
+serde_regex = "1.1.0"
+# Used for U256
+primitive-types = { version = "0.13.1", features = ["serde"] }
+chacha20 = "0.9.1"
+better_any = "0.2.0"
+log-panics = { version = "2", features = ["with-backtrace"] }
+
+[target.armv7-unknown-linux-gnueabihf.dependencies]
+# TODO: remove once fixed https://github.com/cross-rs/cross/issues/1689
+aws-lc-sys = { version = "0.30", features = ["bindgen"] }
+
+[target.'cfg(windows)'.dependencies]
+win32console = "0.1.5"
+
+# Tokio dependency for WASM
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# We need both crates version to support the WASM/JS
+# NOTE: You must set `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` when building
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom_04 = { package = "getrandom", version = "0.4.0-rc.0", features = ["wasm_js"] }
+tokio_with_wasm = { version = "0.8.7", features = ["macros", "sync", "time", "rt"], optional = true }
+web-time = "1.1.0"
+
+# dependencies for non-WASM
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["macros", "signal", "time", "sync", "rt"], optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+criterion = "0.6.0"
+xelis_compiler = { git = "https://github.com/xelis-project/xelis-vm.git", branch = "dev", package = "xelis-compiler" }
+xelis_parser = { git = "https://github.com/xelis-project/xelis-vm.git", branch = "dev", package = "xelis-parser" }
+xelis_lexer = { git = "https://github.com/xelis-project/xelis-vm.git", branch = "dev", package = "xelis-lexer" }
+
+[features]
+tokio = ["dep:tokio", "dep:tokio_with_wasm", "dep:futures", "dep:pin-project-lite"]
+tokio-multi-thread = ["tokio", "tokio/rt-multi-thread", "tokio_with_wasm/rt-multi-thread"]
+deadlock-detection = ["tokio"]
+
+rpc = []
+rpc-client = ["rpc", "tokio", "dep:reqwest", "dep:futures-util", "dep:tokio-tungstenite-wasm"]
+rpc-server = ["rpc", "dep:actix-rt", "dep:actix-web", "dep:actix-ws", "dep:futures-util", "tokio", "dep:reqwest"]
+
+clap = ["dep:clap"]
+prompt = ["clap", "tokio", "dep:crossterm", "dep:chrono", "dep:zip"]
+tracing = ["dep:console-subscriber", "tokio", "tokio/tracing"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bench]]
+name = "proofs"
+harness = false
+
+[[bench]]
+name = "homomorphic_encryption"
+harness = false
+
+[[bench]]
+name = "address"
+harness = false
