@@ -42,3 +42,6 @@ debug-assertions = false
 overflow-checks = false
 lto = true
 strip = true
+
+[patch.crates-io]
+tokio-tungstenite-wasm = { git = "https://github.com/Slixe/tokio-tungstenite-wasm", branch = "main" }
