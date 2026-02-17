@@ -11,7 +11,7 @@ use serde_json::{json, Map, Value};
 use metrics::{counter, histogram};
 use log::trace;
 use schemars::{schema_for, JsonSchema, Schema};
-pub use xelis_vm::{Context, ShareableTid, tid};
+pub use xelis_vm::{VMContext as Context, tid};
 use crate::{
     async_handler,
     time::Instant,
@@ -66,18 +66,18 @@ pub struct MethodHandler {
     pub schema: RpcSchema
 }
 
-pub struct RPCHandler<T: ShareableTid<'static>> {
+pub struct RPCHandler<T: Send + Sync + 'static> {
     // all RPC methods registered
     methods: HashMap<Cow<'static, str>, MethodHandler>,
     data: T,
     batch_limit: Option<usize>
 }
 
-tid! { impl<'a, T: 'static> TidAble<'a> for RPCHandler<T> where T: ShareableTid<'static> }
+tid! { impl<'a, T: 'static> TidAble<'a> for RPCHandler<T> where T: Send + Sync + 'static }
 
 impl<T> RPCHandler<T>
 where
-    T: ShareableTid<'static>
+    T: Send + Sync + 'static
 {
     // Create a new RPC handler with optional batch limit
     pub fn new(data: T, batch_limit: impl Into<Option<usize>>) -> Self {
@@ -307,7 +307,7 @@ where
 }
 
 // Built-in "schema" method to get all registered methods and their schemas
-async fn schema<'a, T: ShareableTid<'static>>(context: &'a Context<'_, '_>) -> Result<Value, InternalRpcError> {
+async fn schema<'a, T: Send + Sync + 'static>(context: &'a Context<'_, '_>) -> Result<Value, InternalRpcError> {
     let rpc_handler: &RPCHandler<T> = context.get()
         .ok_or(InternalRpcError::InternalError("RPCHandler not found in context")).unwrap();
 
@@ -365,3 +365,10 @@ pub fn require_no_params(value: Value) -> Result<(), InternalRpcError> {
 
     Ok(())
 }
+
+
+
+
+
+
+
