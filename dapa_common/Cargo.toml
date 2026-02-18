@@ -9,10 +9,10 @@ build = "build.rs"
 
 [dependencies]
 xelis-hash = { git = "https://github.com/xelis-project/xelis-hash", branch = "master" }
-xelis-vm = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev", features = ["logging"] }
-xelis-types = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev" }
-xelis-builder = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev" }
-xelis-bytecode = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev" }
+xelis-vm = { git = "https://github.com/xelis-project/xelis-vm", rev = "021efa17324a8f6a7508afc45e2a8c20d6ccc690", features = ["logging"] }
+xelis-types = { git = "https://github.com/xelis-project/xelis-vm", rev = "021efa17324a8f6a7508afc45e2a8c20d6ccc690" }
+xelis-builder = { git = "https://github.com/xelis-project/xelis-vm", rev = "021efa17324a8f6a7508afc45e2a8c20d6ccc690" }
+xelis-bytecode = { git = "https://github.com/xelis-project/xelis-vm", rev = "021efa17324a8f6a7508afc45e2a8c20d6ccc690" }
 bulletproofs = { git = "https://github.com/xelis-project/bulletproofs", tag = "v5.0.2" }
 curve25519-dalek = { features = ["digest", "group", "rand_core", "serde", "ecdlp"], git = "https://github.com/xelis-project/curve25519-dalek", tag = "v4.2.0" }
 merlin = { git = "https://github.com/xelis-project/merlin", tag = "v3.1.0" }
@@ -86,9 +86,9 @@ tokio = { workspace = true, features = ["macros", "signal", "time", "sync", "rt"
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 criterion = "0.6.0"
-xelis_compiler = { git = "https://github.com/xelis-project/xelis-vm.git", branch = "dev", package = "xelis-compiler" }
-xelis_parser = { git = "https://github.com/xelis-project/xelis-vm.git", branch = "dev", package = "xelis-parser" }
-xelis_lexer = { git = "https://github.com/xelis-project/xelis-vm.git", branch = "dev", package = "xelis-lexer" }
+xelis_compiler = { git = "https://github.com/xelis-project/xelis-vm.git", rev = "021efa17324a8f6a7508afc45e2a8c20d6ccc690", package = "xelis-compiler" }
+xelis_parser = { git = "https://github.com/xelis-project/xelis-vm.git", rev = "021efa17324a8f6a7508afc45e2a8c20d6ccc690", package = "xelis-parser" }
+xelis_lexer = { git = "https://github.com/xelis-project/xelis-vm.git", rev = "021efa17324a8f6a7508afc45e2a8c20d6ccc690", package = "xelis-lexer" }
 
 [features]
 tokio = ["dep:tokio", "dep:tokio_with_wasm", "dep:futures", "dep:pin-project-lite"]
