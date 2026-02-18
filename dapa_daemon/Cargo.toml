@@ -8,8 +8,8 @@ authors = ["Slixe <slixeprivate@gmail.com>"]
 
 [dependencies]
 dapa_common = { path = "../dapa_common", features = ["prompt", "clap", "rpc-server", "tokio"] }
-xelis-environment = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev" }
-xelis-vm = { git = "https://github.com/xelis-project/xelis-vm", branch = "dev" }
+xelis-environment = { git = "https://github.com/xelis-project/xelis-vm", rev = "021efa17324a8f6a7508afc45e2a8c20d6ccc690" }
+xelis-vm = { git = "https://github.com/xelis-project/xelis-vm", rev = "021efa17324a8f6a7508afc45e2a8c20d6ccc690" }
 
 # Database backends
 sled = "0.34.7"
