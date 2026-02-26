@@ -1154,7 +1154,7 @@ impl Wallet {
                         calculated = cap;
                     }
                 }
-                debug!("Estimated base fee from daemon: {} ({} XEL)", calculated, format_dapa(calculated));
+                debug!("Estimated base fee from daemon: {} ({} DAPA)", calculated, format_dapa(calculated));
                 state.set_base_fee(calculated);
             }
         }
@@ -1336,54 +1336,57 @@ impl Wallet {
     // that will delete all transactions above the given topoheight and all balances
     // then it will re-fetch all transactions and balances from daemon
     #[cfg(feature = "network_handler")]
-    pub async fn rescan(&self, mut topoheight: u64, auto_reconnect: bool) -> Result<(), WalletError> {
-        trace!("Rescan wallet from topoheight {}", topoheight);
-        if !self.is_online().await {
-            // user have to set it online
-            return Err(WalletError::NotOnlineMode)
-        }
+pub async fn rescan(&self, mut topoheight: u64, auto_reconnect: bool) -> Result<(), WalletError> {
+    trace!("Rescan wallet from topoheight {}", topoheight);
+    if !self.is_online().await {
+        return Err(WalletError::NotOnlineMode)
+    }
 
-        let mut storage = self.get_storage().write().await;
+    // Check topoheight THEN drop the lock before touching the network handler
+    {
+        let storage = self.get_storage().read().await;
         if topoheight > storage.get_synced_topoheight()? {
             return Err(WalletError::RescanTopoheightTooHigh)
         }
+    } // <-- storage lock dropped here
 
-        let handler = self.network_handler.lock().await;
-        if let Some(network_handler) = handler.as_ref() {
-            let pruned_topoheight = network_handler.get_api().get_pruned_topoheight().await?;
-            let pruned_topo = pruned_topoheight.unwrap_or(0);
-            // Prevent people losing their history if they rescan from a pruned chain
-            if topoheight < pruned_topo {
-                warn!("Rescan topoheight is below pruned topoheight, setting it to {} to avoid losing history", pruned_topo);
-                topoheight = pruned_topo;
-            }
-
-            debug!("Stopping network handler!");
-            network_handler.stop(false).await?;
-            {
-                debug!("set synced topoheight to {}", topoheight);
-                storage.set_synced_topoheight(topoheight)?;
-                storage.delete_top_block_hash()?;
-                // balances will be re-fetched from daemon
-                storage.delete_balances().await?;
-                storage.delete_assets().await?;
-                // unconfirmed balances are going to be outdated, we delete them
-                storage.delete_unconfirmed_balances().await;
-                storage.set_last_coinbase_topoheight(None)?;
-
-                if !network_handler.get_api().is_online() {
-                    debug!("reconnect API");
-                    network_handler.get_api().reconnect().await?;
-                }
-            }
-            debug!("Starting again network handler");
-            network_handler.start(auto_reconnect).await?;
-        } else {
-            return Err(WalletError::NotOnlineMode)
+    let handler = self.network_handler.lock().await;
+    if let Some(network_handler) = handler.as_ref() {
+        let pruned_topoheight = network_handler.get_api().get_pruned_topoheight().await?;
+        let pruned_topo = pruned_topoheight.unwrap_or(0);
+        if topoheight < pruned_topo {
+            warn!("Rescan topoheight is below pruned topoheight, setting it to {} to avoid losing history", pruned_topo);
+            topoheight = pruned_topo;
         }
 
-        Ok(())
+        debug!("Stopping network handler!");
+        network_handler.stop(false).await?;
+
+        // Now safe to take the storage write lock - network handler is stopped
+        {
+            let mut storage = self.get_storage().write().await;
+            debug!("set synced topoheight to {}", topoheight);
+            storage.set_synced_topoheight(topoheight)?;
+            storage.delete_top_block_hash()?;
+            storage.delete_balances().await?;
+            storage.delete_assets().await?;
+            storage.delete_unconfirmed_balances().await;
+            storage.set_last_coinbase_topoheight(None)?;
+        } // <-- storage lock dropped here
+
+        if !network_handler.get_api().is_online() {
+            debug!("reconnect API");
+            network_handler.get_api().reconnect().await?;
+        }
+
+        debug!("Starting again network handler");
+        network_handler.start(auto_reconnect).await?;
+    } else {
+        return Err(WalletError::NotOnlineMode)
     }
+
+    Ok(())
+}
 
     // Check if the wallet is in online mode
     pub async fn is_online(&self) -> bool {
