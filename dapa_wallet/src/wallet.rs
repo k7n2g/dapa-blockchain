@@ -1372,6 +1372,7 @@ pub async fn rescan(&self, mut topoheight: u64, auto_reconnect: bool) -> Result<
             storage.delete_assets().await?;
             storage.delete_unconfirmed_balances().await;
             storage.set_last_coinbase_topoheight(None)?;
+            storage.clear_tx_cache().await;
         } // <-- storage lock dropped here
 
         if !network_handler.get_api().is_online() {
