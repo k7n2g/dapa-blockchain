@@ -115,7 +115,7 @@ pub const SIDE_BLOCK_REWARD_MAX_BLOCKS: u64 = 3;
 pub const SIDE_BLOCK_REWARD_MIN_PERCENT: u64 = 5;
 // Emission speed factor for the emission curve
 // It is used to calculate based on the supply the block reward
-pub const EMISSION_SPEED_FACTOR: u64 = 20;
+pub const EMISSION_SPEED_FACTOR: u64 = 23;
 
 // 50 million coins premined to block height 1 for system liquidity
 pub const PREMINE_AMOUNT: u64 = 52_000_000 * 100_000_000; // 50M coins in atomic units
