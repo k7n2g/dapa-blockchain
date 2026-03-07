@@ -1,6 +1,6 @@
 # DAPA
 
-DAPA is the world's first **BlockDAG** with **Privacy**, **Speed**, **Scalability** and **Smart Contracts**.
+DAPA with **BlockDAG** Total **Privacy**, **Speed**, **Scalability** and **Smart Contracts**.
 
 ## Features
 
@@ -9,7 +9,7 @@ The main features of DAPA are the following:
 - **Egalitarian PoW**: Unique PoW algorithm built to allow any CPU or GPU to mine DAPA easily using [xelis-hash](https://github.com/xelis-project/xelis-hash).
 - **Kalman Filter**: Difficulty adjustment algorithm using Kalman Filter to adjust the difficulty at each block instantly and smoothly to prevent any stuck-chain or dishonest miners mining at lower difficulty. 
 - **Privacy**: Homomorphic Encryption allows to have encrypted balances and encrypted transfered amounts.
-- **Smart Contracts**: allows to create unstoppable decentralized applications by deploying programs on the network, executed in our sandboxed environment [xelis-vm](https://github.com/xelis-project/xelis-vm).
+- **Smart Contracts**: allows to create unstoppable decentralized applications by deploying programs on the network.
 - **Confidential Asset**: Any asset deployed on DAPA network will have the same privacy and functionality like DAPA in any wallet.
 - **Event system**: every event happening on the network (daemon or wallet) can be detected and notified easily.
 - **Instant Synchronization**: Your wallet balances and history is synced in few seconds. No need to sync the whole chain to use your wallet.
@@ -543,5 +543,6 @@ Otherwise, an error like this will be sent and the connection will be closed by 
     "jsonrpc": "2.0"
 }
 ```
-#   d a p a - b l o c k c h a i n  
+#   d a p a - b l o c k c h a i n 
+ 
  
