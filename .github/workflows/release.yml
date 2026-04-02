@@ -19,7 +19,7 @@ jobs:
       - name: Create start scripts
         run: |
           printf '#!/bin/bash\necho "Starting DAPA Node..."\n./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification\n' > target/release/start_node.sh
-          printf '#!/bin/bash\necho "============================================"\necho "DAPA Miner - Edit this file before running"\necho "Replace YOUR_WALLET_ADDRESS with your dap: address"\necho "============================================"\necho ""\n./dapa_miner --daemon-address 194.163.189.149:20101 --miner-address dap:YOUR_WALLET_ADDRESS --num-threads --worker YOUR_WORKER_NAME 2\n' > target/release/start_miner.sh
+          printf '#!/bin/bash\necho "============================================"\necho "DAPA Miner - Edit this file before running"\necho "Replace YOUR_WALLET_ADDRESS with your dap: address"\necho "Replace YOUR_WORKER_NAME with a name for your miner"\necho "============================================"\necho ""\n./dapa_miner --daemon-address 194.163.189.149:20101 --miner-address dap:YOUR_WALLET_ADDRESS --num-threads 2 --worker YOUR_WORKER_NAME\n' > target/release/start_miner.sh
           chmod +x target/release/start_node.sh target/release/start_miner.sh
       - name: Package
         run: |
@@ -49,7 +49,7 @@ jobs:
       - name: Create bat files
         run: |
           Set-Content -Path target/release/start_node.bat -Value "@echo off`r`necho Starting DAPA Node...`r`ndapa_daemon.exe --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification`r`npause"
-          Set-Content -Path target/release/start_miner.bat -Value "@echo off`r`necho ============================================`r`necho   DAPA Miner - Edit this file before running`r`necho   Open with Notepad and replace YOUR_WALLET_ADDRESS`r`necho   with your dap: address e.g. dap:abc123...`r`necho ============================================`r`necho.`r`ndapa_miner.exe --daemon-address 194.163.189.149:20101 --miner-address dap:YOUR_WALLET_ADDRESS --num-threads 2 --worker YOUR_WORKER_NAME `r`npause"
+          Set-Content -Path target/release/start_miner.bat -Value "@echo off`r`necho ============================================`r`necho   DAPA Miner - Edit this file before running`r`necho   Open with Notepad and replace YOUR_WALLET_ADDRESS`r`necho   with your dap: address e.g. dap:abc123...`r`necho   Also replace YOUR_WORKER_NAME with a name for your miner`r`necho ============================================`r`necho.`r`ndapa_miner.exe --daemon-address 194.163.189.149:20101 --miner-address dap:YOUR_WALLET_ADDRESS --num-threads 2 --worker YOUR_WORKER_NAME`r`npause"
       - name: Package
         run: |
           cd target/release
@@ -87,21 +87,21 @@ jobs:
             - `dapa_wallet` — CLI wallet for sending and receiving DAPA
             - `dapa_miner` — CPU miner (XelisHashV3)
             - `start_node` — Quick start script for running a node
-            - `start_miner` — Quick start script for miner (edit with your wallet address first)
+            - `start_miner` — Quick start script for mining (edit with your wallet address and worker name first)
 
             ### Quick Start — Mining
-            The fastest way to start mineing is to use the config generator at [mine.dapahe.com](https://mine.dapahe.com) — enter your wallet address and get your launch command in 60 seconds.
+            The fastest way to start mining is to use the config generator at [mine.dapahe.com](https://mine.dapahe.com) — enter your wallet address and get your launch command in 60 seconds.
 
-            **Windows:** Edit `start_miner.bat` with Notepad, replace `YOUR_WALLET_ADDRESS` with your `dap:` address, then double-click it.
+            **Windows:** Edit `start_miner.bat` with Notepad, replace `YOUR_WALLET_ADDRESS` with your `dap:` address and `YOUR_WORKER_NAME` with a name for your miner, then double-click it.
 
-            **Linux:** Edit `start_miner.sh`, replace `YOUR_WALLET_ADDRESS` with your `dap:` address, then run `./start_miner.sh`
+            **Linux:** Edit `start_miner.sh`, replace `YOUR_WALLET_ADDRESS` and `YOUR_WORKER_NAME`, then run `./start_miner.sh`
 
             ### Quick Start — Running a Node
             **Windows:** Double-click `start_node.bat`
 
             **Linux:** Run `./start_node.sh`
 
-            > ?? **IMPORTANT:** Never use `--allow-boost-sync` — this causes database corruption. Always use `--allow-fast-sync` for initial sync.
+            > WARNING: Never use `--allow-boost-sync` — this causes database corruption. Always use `--allow-fast-sync` for initial sync.
 
             ### Network
             - **P2P Port:** 20100
