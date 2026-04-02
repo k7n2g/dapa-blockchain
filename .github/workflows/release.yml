@@ -9,14 +9,11 @@ jobs:
   build-linux-amd:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y clang cmake
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: cargo build --release
       - name: Package
@@ -25,7 +22,7 @@ jobs:
           strip dapa_daemon dapa_wallet dapa_miner
           zip ../../dapa-${{ github.ref_name }}-linux-x86_64-amd.zip dapa_daemon dapa_wallet dapa_miner
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux-amd
           path: dapa-${{ github.ref_name }}-linux-x86_64-amd.zip
@@ -33,15 +30,13 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: x86_64-pc-windows-msvc
-          override: true
+          targets: x86_64-pc-windows-msvc
       - name: Install LLVM/Clang
-        uses: KyleMayes/install-llvm-action@v1
+        uses: KyleMayes/install-llvm-action@v2
         with:
           version: "15"
       - name: Build
@@ -51,7 +46,7 @@ jobs:
           cd target/release
           Compress-Archive -Path dapa_daemon.exe,dapa_wallet.exe,dapa_miner.exe -DestinationPath ../../dapa-${{ github.ref_name }}-windows-x86_64.zip
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows
           path: dapa-${{ github.ref_name }}-windows-x86_64.zip
@@ -63,9 +58,9 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           body: |
             ## DAPA Blockchain ${{ github.ref_name }} — Official Binaries
