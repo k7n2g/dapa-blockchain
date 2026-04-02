@@ -1,0 +1,109 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-linux-amd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang cmake
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Build
+        run: cargo build --release
+      - name: Package
+        run: |
+          cd target/release
+          strip dapa_daemon dapa_wallet dapa_miner
+          zip ../../dapa-${{ github.ref_name }}-linux-x86_64-amd.zip dapa_daemon dapa_wallet dapa_miner
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-amd
+          path: dapa-${{ github.ref_name }}-linux-x86_64-amd.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
+          override: true
+      - name: Install LLVM/Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "15"
+      - name: Build
+        run: cargo build --release
+      - name: Package
+        run: |
+          cd target/release
+          Compress-Archive -Path dapa_daemon.exe,dapa_wallet.exe,dapa_miner.exe -DestinationPath ../../dapa-${{ github.ref_name }}-windows-x86_64.zip
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows
+          path: dapa-${{ github.ref_name }}-windows-x86_64.zip
+
+  release:
+    needs: [build-linux-amd, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            ## DAPA Blockchain ${{ github.ref_name }} — Official Binaries
+
+            Pre-compiled binaries for the DAPA Blockchain network.
+            Includes daemon, wallet, and miner for Linux and Windows.
+
+            ### Downloads
+            - `dapa-linux-x86_64-amd.zip` — Linux x86_64 (Ubuntu, Debian, CentOS)
+            - `dapa-windows-x86_64.zip` — Windows 10/11 x86_64
+            - macOS — coming soon
+
+            ### What's included in each zip
+            - `dapa_daemon` — Full node / blockchain daemon
+            - `dapa_wallet` — CLI wallet for sending and receiving DAPA
+            - `dapa_miner` — CPU miner (XelisHashV3)
+
+            ### Quick Start — Mining
+            The fastest way to start mining is to use the config generator at [mine.dapahe.com](https://mine.dapahe.com) — enter your wallet address and get your launch command in 60 seconds.
+
+            Or manually:
+            ```
+            ./dapa_miner --daemon-address 194.163.189.149:20101 --mining-address dap:YOUR_ADDRESS
+            ```
+
+            ### Quick Start — Running a Node
+            ```
+            ./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification
+            ```
+
+            > ?? **IMPORTANT:** Never use `--allow-boost-sync` — this causes database corruption. Always use `--allow-fast-sync` for initial sync.
+
+            ### Network
+            - **P2P Port:** 20100
+            - **RPC Port:** 20101
+            - **Explorer:** [explorer.dapahe.com](https://explorer.dapahe.com)
+            - **Web Wallet:** [webwallet.dapahe.com](https://webwallet.dapahe.com)
+            - **Mining Page:** [mine.dapahe.com](https://mine.dapahe.com)
+          files: |
+            linux-amd/*.zip
+            windows/*.zip
