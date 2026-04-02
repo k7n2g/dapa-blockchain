@@ -16,31 +16,16 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: cargo build --release
+      - name: Create start scripts
+        run: |
+          printf '#!/bin/bash\necho "Starting DAPA Node..."\n./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification\n' > target/release/start_node.sh
+          printf '#!/bin/bash\necho "============================================"\necho "DAPA Miner - Edit this file before running"\necho "Replace YOUR_WALLET_ADDRESS with your dap: address"\necho "============================================"\necho ""\n./dapa_miner --daemon-address 194.163.189.149:20101 --mining-address dap:YOUR_WALLET_ADDRESS --num-threads 2\n' > target/release/start_miner.sh
+          chmod +x target/release/start_node.sh target/release/start_miner.sh
       - name: Package
         run: |
           cd target/release
           strip dapa_daemon dapa_wallet dapa_miner
-
-          cat > start_node.sh << 'SCRIPT'
-#!/bin/bash
-echo "Starting DAPA Node..."
-./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification
-SCRIPT
-
-          cat > start_miner.sh << 'SCRIPT'
-#!/bin/bash
-echo "============================================"
-echo "  DAPA Miner - Edit this file before running"
-echo "  Replace YOUR_WALLET_ADDRESS with your dap: address"
-echo "  Example: dap:abc123..."
-echo "============================================"
-echo ""
-./dapa_miner --daemon-address 194.163.189.149:20101 --mining-address dap:YOUR_WALLET_ADDRESS --num-threads 2
-SCRIPT
-
-          chmod +x start_node.sh start_miner.sh
           zip ../../dapa-${{ github.ref_name }}-linux-x86_64-amd.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
