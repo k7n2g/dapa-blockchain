@@ -20,7 +20,27 @@ jobs:
         run: |
           cd target/release
           strip dapa_daemon dapa_wallet dapa_miner
-          zip ../../dapa-${{ github.ref_name }}-linux-x86_64-amd.zip dapa_daemon dapa_wallet dapa_miner
+
+          cat > start_node.sh << 'SCRIPT'
+#!/bin/bash
+echo "Starting DAPA Node..."
+./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification
+SCRIPT
+
+          cat > start_miner.sh << 'SCRIPT'
+#!/bin/bash
+echo "============================================"
+echo "  DAPA Miner - Edit this file before running"
+echo "  Replace YOUR_WALLET_ADDRESS with your dap: address"
+echo "  Example: dap:abc123..."
+echo "============================================"
+echo ""
+./dapa_miner --daemon-address 194.163.189.149:20101 --mining-address dap:YOUR_WALLET_ADDRESS --num-threads 2
+SCRIPT
+
+          chmod +x start_node.sh start_miner.sh
+          zip ../../dapa-${{ github.ref_name }}-linux-x86_64-amd.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -41,10 +61,14 @@ jobs:
           version: "15"
       - name: Build
         run: cargo build --release
+      - name: Create bat files
+        run: |
+          Set-Content -Path target/release/start_node.bat -Value "@echo off`r`necho Starting DAPA Node...`r`ndapa_daemon.exe --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification`r`npause"
+          Set-Content -Path target/release/start_miner.bat -Value "@echo off`r`necho ============================================`r`necho   DAPA Miner - Edit this file before running`r`necho   Open with Notepad and replace YOUR_WALLET_ADDRESS`r`necho   with your dap: address e.g. dap:abc123...`r`necho ============================================`r`necho.`r`ndapa_miner.exe --daemon-address 194.163.189.149:20101 --mining-address dap:YOUR_WALLET_ADDRESS --num-threads 2`r`npause"
       - name: Package
         run: |
           cd target/release
-          Compress-Archive -Path dapa_daemon.exe,dapa_wallet.exe,dapa_miner.exe -DestinationPath ../../dapa-${{ github.ref_name }}-windows-x86_64.zip
+          Compress-Archive -Path dapa_daemon.exe,dapa_wallet.exe,dapa_miner.exe,start_node.bat,start_miner.bat -DestinationPath ../../dapa-${{ github.ref_name }}-windows-x86_64.zip
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -77,19 +101,20 @@ jobs:
             - `dapa_daemon` — Full node / blockchain daemon
             - `dapa_wallet` — CLI wallet for sending and receiving DAPA
             - `dapa_miner` — CPU miner (XelisHashV3)
+            - `start_node` — Quick start script for running a node
+            - `start_miner` — Quick start script for mining (edit with your wallet address first)
 
             ### Quick Start — Mining
             The fastest way to start mining is to use the config generator at [mine.dapahe.com](https://mine.dapahe.com) — enter your wallet address and get your launch command in 60 seconds.
 
-            Or manually:
-            ```
-            ./dapa_miner --daemon-address 194.163.189.149:20101 --mining-address dap:YOUR_ADDRESS
-            ```
+            **Windows:** Edit `start_miner.bat` with Notepad, replace `YOUR_WALLET_ADDRESS` with your `dap:` address, then double-click it.
+
+            **Linux:** Edit `start_miner.sh`, replace `YOUR_WALLET_ADDRESS` with your `dap:` address, then run `./start_miner.sh`
 
             ### Quick Start — Running a Node
-            ```
-            ./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification
-            ```
+            **Windows:** Double-click `start_node.bat`
+
+            **Linux:** Run `./start_node.sh`
 
             > ?? **IMPORTANT:** Never use `--allow-boost-sync` — this causes database corruption. Always use `--allow-fast-sync` for initial sync.
 
