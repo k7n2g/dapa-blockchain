@@ -32,7 +32,7 @@ jobs:
           name: linux-amd
           path: dapa-${{ github.ref_name }}-linux-x86_64-amd.zip
           
-   build-linux-intel:
+  build-linux-intel:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,36 +101,36 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body: |
-            ## DAPA Blockchain ${{ github.ref_name }} — Official Binaries
+            ## DAPA Blockchain ${{ github.ref_name }} ï¿½ Official Binaries
 
             Pre-compiled binaries for the DAPA Blockchain network.
             Includes daemon, wallet, and miner for Linux and Windows.
 
             ### Downloads
-            - `dapa-linux-x86_64-amd.zip` — Linux x86_64 (Ubuntu, Debian, CentOS)
-            - `dapa-windows-x86_64.zip` — Windows 10/11 x86_64
-            - macOS — coming soon
+            - `dapa-linux-x86_64-amd.zip` ï¿½ Linux x86_64 (Ubuntu, Debian, CentOS)
+            - `dapa-windows-x86_64.zip` ï¿½ Windows 10/11 x86_64
+            - macOS ï¿½ coming soon
 
             ### What's included in each zip
-            - `dapa_daemon` — Full node / blockchain daemon
-            - `dapa_wallet` — CLI wallet for sending and receiving DAPA
-            - `dapa_miner` — CPU miner (XelisHashV3)
-            - `start_node` — Quick start script for running a node
-            - `start_miner` — Quick start script for mining (edit with your wallet address and worker name first)
+            - `dapa_daemon` ï¿½ Full node / blockchain daemon
+            - `dapa_wallet` ï¿½ CLI wallet for sending and receiving DAPA
+            - `dapa_miner` ï¿½ CPU miner (XelisHashV3)
+            - `start_node` ï¿½ Quick start script for running a node
+            - `start_miner` ï¿½ Quick start script for mining (edit with your wallet address and worker name first)
 
-            ### Quick Start — Mining
-            The fastest way to start mining is to use the config generator at [mine.dapahe.com](https://mine.dapahe.com) — enter your wallet address and get your launch command in 60 seconds.
+            ### Quick Start ï¿½ Mining
+            The fastest way to start mining is to use the config generator at [mine.dapahe.com](https://mine.dapahe.com) ï¿½ enter your wallet address and get your launch command in 60 seconds.
 
             **Windows:** Edit `start_miner.bat` with Notepad, replace `YOUR_WALLET_ADDRESS` with your `dap:` address and `YOUR_WORKER_NAME` with a name for your miner, then double-click it.
 
             **Linux:** Edit `start_miner.sh`, replace `YOUR_WALLET_ADDRESS` and `YOUR_WORKER_NAME`, then run `./start_miner.sh`
 
-            ### Quick Start — Running a Node
+            ### Quick Start ï¿½ Running a Node
             **Windows:** Double-click `start_node.bat`
 
             **Linux:** Run `./start_node.sh`
 
-            > WARNING: Never use `--allow-boost-sync` — this causes database corruption. Always use `--allow-fast-sync` for initial sync.
+            > WARNING: Never use `--allow-boost-sync` ï¿½ this causes database corruption. Always use `--allow-fast-sync` for initial sync.
 
             ### Network
             - **P2P Port:** 20100
