@@ -31,6 +31,35 @@ jobs:
         with:
           name: linux-amd
           path: dapa-${{ github.ref_name }}-linux-x86_64-amd.zip
+          
+   build-linux-intel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang cmake
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+      - name: Build
+        run: RUSTFLAGS="-C target-cpu=x86-64" cargo build --release
+      - name: Create start scripts
+        run: |
+          printf '#!/bin/bash\necho "Starting DAPA Node..."\n./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification\n' > target/release/start_node.sh
+          printf '#!/bin/bash\n./dapa_miner --daemon-address 194.163.189.149:20101 --miner-address dap:YOUR_WALLET_ADDRESS --num-threads 2 --worker YOUR_WORKER_NAME\n' > target/release/start_miner.sh
+          chmod +x target/release/start_node.sh target/release/start_miner.sh
+      - name: Package
+        run: |
+          cd target/release
+          strip dapa_daemon dapa_wallet dapa_miner
+          zip ../../dapa-${{ github.ref_name }}-linux-x86_64-intel.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-intel
+          path: dapa-${{ github.ref_name }}-linux-x86_64-intel.zip       
+          
 
   build-windows:
     runs-on: windows-latest
@@ -61,7 +90,7 @@ jobs:
           path: dapa-${{ github.ref_name }}-windows-x86_64.zip
 
   release:
-    needs: [build-linux-amd, build-windows]
+    needs: [build-linux-amd, build-linux-intel, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -111,4 +140,5 @@ jobs:
             - **Mining Page:** [mine.dapahe.com](https://mine.dapahe.com)
           files: |
             linux-amd/*.zip
+            linux-intel/*.zip
             windows/*.zip
