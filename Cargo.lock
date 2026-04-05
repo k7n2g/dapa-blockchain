@@ -1340,7 +1340,7 @@ dependencies = [
 
 [[package]]
 name = "dapa_common"
-version = "1.21.3"
+version = "1.23.3"
 dependencies = [
  "actix-rt",
  "actix-web",
@@ -1402,7 +1402,7 @@ dependencies = [
 
 [[package]]
 name = "dapa_daemon"
-version = "1.21.3"
+version = "1.23.3"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "dapa_miner"
-version = "1.21.3"
+version = "1.23.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -1461,7 +1461,7 @@ dependencies = [
 
 [[package]]
 name = "dapa_wallet"
-version = "1.21.3"
+version = "1.23.3"
 dependencies = [
  "actix-web",
  "actix-web-httpauth",
@@ -5193,7 +5193,7 @@ dependencies = [
 [[package]]
 name = "xelis-ast"
 version = "0.1.0"
-source = "git+https://github.com/xelis-project/xelis-vm?branch=dev#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
+source = "git+https://github.com/xelis-project/xelis-vm?rev=021efa17324a8f6a7508afc45e2a8c20d6ccc690#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
 dependencies = [
  "indexmap 2.13.0",
  "xelis-types",
@@ -5202,7 +5202,7 @@ dependencies = [
 [[package]]
 name = "xelis-builder"
 version = "0.1.0"
-source = "git+https://github.com/xelis-project/xelis-vm?branch=dev#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
+source = "git+https://github.com/xelis-project/xelis-vm?rev=021efa17324a8f6a7508afc45e2a8c20d6ccc690#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
 dependencies = [
  "anyhow",
  "hex",
@@ -5217,7 +5217,7 @@ dependencies = [
 [[package]]
 name = "xelis-bytecode"
 version = "0.1.0"
-source = "git+https://github.com/xelis-project/xelis-vm?branch=dev#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
+source = "git+https://github.com/xelis-project/xelis-vm?rev=021efa17324a8f6a7508afc45e2a8c20d6ccc690#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
 dependencies = [
  "hex",
  "indexmap 2.13.0",
@@ -5230,7 +5230,7 @@ dependencies = [
 [[package]]
 name = "xelis-compiler"
 version = "0.1.0"
-source = "git+https://github.com/xelis-project/xelis-vm?branch=dev#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
+source = "git+https://github.com/xelis-project/xelis-vm?rev=021efa17324a8f6a7508afc45e2a8c20d6ccc690#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
 dependencies = [
  "log",
  "thiserror 2.0.18",
@@ -5243,7 +5243,7 @@ dependencies = [
 [[package]]
 name = "xelis-environment"
 version = "0.1.0"
-source = "git+https://github.com/xelis-project/xelis-vm?branch=dev#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
+source = "git+https://github.com/xelis-project/xelis-vm?rev=021efa17324a8f6a7508afc45e2a8c20d6ccc690#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
 dependencies = [
  "anyhow",
  "better_any",
@@ -5271,7 +5271,7 @@ dependencies = [
 [[package]]
 name = "xelis-lexer"
 version = "0.1.0"
-source = "git+https://github.com/xelis-project/xelis-vm?branch=dev#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
+source = "git+https://github.com/xelis-project/xelis-vm?rev=021efa17324a8f6a7508afc45e2a8c20d6ccc690#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
 dependencies = [
  "log",
  "thiserror 2.0.18",
@@ -5282,7 +5282,7 @@ dependencies = [
 [[package]]
 name = "xelis-parser"
 version = "0.1.0"
-source = "git+https://github.com/xelis-project/xelis-vm?branch=dev#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
+source = "git+https://github.com/xelis-project/xelis-vm?rev=021efa17324a8f6a7508afc45e2a8c20d6ccc690#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
 dependencies = [
  "anyhow",
  "indexmap 2.13.0",
@@ -5298,7 +5298,7 @@ dependencies = [
 [[package]]
 name = "xelis-types"
 version = "0.1.0"
-source = "git+https://github.com/xelis-project/xelis-vm?branch=dev#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
+source = "git+https://github.com/xelis-project/xelis-vm?rev=021efa17324a8f6a7508afc45e2a8c20d6ccc690#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
 dependencies = [
  "anyhow",
  "hex",
@@ -5314,7 +5314,7 @@ dependencies = [
 [[package]]
 name = "xelis-vm"
 version = "0.1.0"
-source = "git+https://github.com/xelis-project/xelis-vm?branch=dev#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
+source = "git+https://github.com/xelis-project/xelis-vm?rev=021efa17324a8f6a7508afc45e2a8c20d6ccc690#021efa17324a8f6a7508afc45e2a8c20d6ccc690"
 dependencies = [
  "anyhow",
  "futures",
@@ -5489,3 +5489,8 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "tokio-tungstenite-wasm"
+version = "0.8.0"
+source = "git+https://github.com/Slixe/tokio-tungstenite-wasm?branch=main#738c896bafc96ed36b69e622532a0b353d834fdb"

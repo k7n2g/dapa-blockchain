@@ -115,7 +115,7 @@ pub const SIDE_BLOCK_REWARD_MAX_BLOCKS: u64 = 3;
 pub const SIDE_BLOCK_REWARD_MIN_PERCENT: u64 = 5;
 // Emission speed factor for the emission curve
 // It is used to calculate based on the supply the block reward
-pub const EMISSION_SPEED_FACTOR: u64 = 20;
+pub const EMISSION_SPEED_FACTOR: u64 = 21;
 
 // 50 million coins premined to block height 1 for system liquidity
 pub const PREMINE_AMOUNT: u64 = 52_000_000 * 100_000_000; // 50M coins in atomic units
@@ -248,8 +248,8 @@ HardFork {
         // Expected date: 19/12/2025 ~11pm UTC
         height: 0,
         version: BlockVersion::V5,
-        changelog: "TX Base fee improvements",
-        version_requirement: Some(">=1.21.0")
+        changelog: "Emission schedule adjustment to 21-year distribution. All nodes must upgrade to v1.23.2 or higher before block 438400.",
+        version_requirement: Some(">=1.23.3")
     }
 ];
 
@@ -288,8 +288,8 @@ const OTHERS_NETWORK_HARD_FORKS: [HardFork; 6] = [
     HardFork {
         height: 0,
         version: BlockVersion::V5,
-        changelog: "TX Base fee improvements",
-        version_requirement: Some(">=1.21.0")
+        changelog: "Emission schedule adjustment to 21-year distribution. All nodes must upgrade to v1.23.2 or higher before block 438400.",
+        version_requirement: Some(">=1.23.3")
     }
 ];
 
@@ -303,9 +303,9 @@ const OTHERS_NETWORK_HARD_FORKS: [HardFork; 6] = [
 // Mainnet seed nodes
 const MAINNET_SEED_NODES: [&str; 3] = [
     // France
-    "185.198.27.165:20100",
+    "37.60.236.124:20100",
     // Germany
-    "45.84.138.159:20100",
+    "62.171.173.163:20100",
     //singapore
     "194.163.189.149:20100"
 ];

@@ -894,12 +894,12 @@ impl Wallet {
                     // Last mining reward is above stable topoheight, this may increase orphans rate
                     // To avoid this, we will use the last balance version in stable topoheight as reference
                     let stable_topoheight = network_handler.get_api().get_stable_topoheight().await?;
-                    let mut should_use_stable_balance = force_stable_balance || (
-                        // if we either have a coinbase reward above stable topoheight
-                        // and no pending tx cache
-                        storage.get_last_coinbase_topoheight().is_some_and(|v| v > stable_topoheight)
-                        && storage.get_tx_cache().is_none()
-                    );
+                     let mut should_use_stable_balance = force_stable_balance || (
+                     storage.get_last_coinbase_topoheight().map_or(true, |v| v > stable_topoheight)
+                     && storage.get_tx_cache().is_none()
+                    );  
+                    
+                                        
                     info!("Stable topoheight is {}, should use stable balance: {}, last coinbase: {:?}", stable_topoheight, should_use_stable_balance, storage.get_last_coinbase_topoheight());
 
                     // We also need to check if we have made an outgoing TX
@@ -931,7 +931,7 @@ impl Wallet {
                                         let version = network_handler.get_api().get_stable_balance(&address, &asset).await?;
                                         debug!("Found previous balance version for asset {} at topoheight {} (contains input: {})", asset, version.topoheight, version.version.contains_input());
 
-                                        let select_output_balance = version.topoheight > stable_topoheight;
+                                        let select_output_balance = true; // always use output ciphertext
 
                                         debug!("Using previous balance version for asset {} at topoheight {} with ciphertext {}, output: {}", asset, version.topoheight, version.version, select_output_balance);
                                         let mut ciphertext = version.version.take_balance_with(select_output_balance);
@@ -986,7 +986,7 @@ impl Wallet {
                                 Ok(stable_point) => {
                                     // Store the stable balance version into unconfirmed balance
                                     // So it will be fetch later by state
-                                    let output = stable_point.topoheight > stable_topoheight;
+                                    let output = true; // always use output ciphertext - sender balance is the post-TX state
                                     let mut ciphertext = stable_point.version.take_balance_with(output);
                                     debug!("decrypting stable balance for asset {}, output: {}", asset, output);
                                     let decompressed = ciphertext.decompressed()
@@ -1372,6 +1372,7 @@ pub async fn rescan(&self, mut topoheight: u64, auto_reconnect: bool) -> Result<
             storage.delete_assets().await?;
             storage.delete_unconfirmed_balances().await;
             storage.set_last_coinbase_topoheight(None)?;
+            storage.clear_tx_cache().await;
         } // <-- storage lock dropped here
 
         if !network_handler.get_api().is_online() {

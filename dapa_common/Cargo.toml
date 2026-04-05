@@ -1,6 +1,6 @@
 [package]
 name = "dapa_common"
-version = "1.21.3"
+version = "1.23.3"
 edition = "2021"
 authors = ["Slixe <slixeprivate@gmail.com>"]
 build = "build.rs"
