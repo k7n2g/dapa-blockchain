@@ -16,22 +16,26 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: cargo build --release
+      - name: Download blockchain snapshot
+        run: |
+          mkdir -p target/release/mainnet
+          curl -L https://node.paymetc.com/snapshot/mainnet.tar.gz | tar -xz -C target/release/
       - name: Create start scripts
         run: |
-          printf '#!/bin/bash\necho "Starting DAPA Node..."\n./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification\n' > target/release/start_node.sh
+          printf '#!/bin/bash\necho "Starting DAPA Node..."\n./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100\n' > target/release/start_node.sh
           printf '#!/bin/bash\necho "============================================"\necho "DAPA Miner - Edit this file before running"\necho "Replace YOUR_WALLET_ADDRESS with your dap: address"\necho "Replace YOUR_WORKER_NAME with a name for your miner"\necho "============================================"\necho ""\n./dapa_miner --daemon-address 194.163.189.149:20101 --miner-address dap:YOUR_WALLET_ADDRESS --num-threads 2 --worker YOUR_WORKER_NAME\n' > target/release/start_miner.sh
           chmod +x target/release/start_node.sh target/release/start_miner.sh
       - name: Package
         run: |
           cd target/release
           strip dapa_daemon dapa_wallet dapa_miner
-          zip ../../dapa-${{ github.ref_name }}-linux-x86_64-amd.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh
+          zip -r ../../dapa-${{ github.ref_name }}-linux-x86_64-amd.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh mainnet/
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-amd
           path: dapa-${{ github.ref_name }}-linux-x86_64-amd.zip
-          
+
   build-linux-intel:
     runs-on: ubuntu-latest
     steps:
@@ -44,22 +48,25 @@ jobs:
           targets: x86_64-unknown-linux-gnu
       - name: Build
         run: RUSTFLAGS="-C target-cpu=x86-64" cargo build --release
+      - name: Download blockchain snapshot
+        run: |
+          mkdir -p target/release/mainnet
+          curl -L https://node.paymetc.com/snapshot/mainnet.tar.gz | tar -xz -C target/release/
       - name: Create start scripts
         run: |
-          printf '#!/bin/bash\necho "Starting DAPA Node..."\n./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification\n' > target/release/start_node.sh
+          printf '#!/bin/bash\necho "Starting DAPA Node..."\n./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100\n' > target/release/start_node.sh
           printf '#!/bin/bash\n./dapa_miner --daemon-address 194.163.189.149:20101 --miner-address dap:YOUR_WALLET_ADDRESS --num-threads 2 --worker YOUR_WORKER_NAME\n' > target/release/start_miner.sh
           chmod +x target/release/start_node.sh target/release/start_miner.sh
       - name: Package
         run: |
           cd target/release
           strip dapa_daemon dapa_wallet dapa_miner
-          zip ../../dapa-${{ github.ref_name }}-linux-x86_64-intel.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh
+          zip -r ../../dapa-${{ github.ref_name }}-linux-x86_64-intel.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh mainnet/
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-intel
-          path: dapa-${{ github.ref_name }}-linux-x86_64-intel.zip       
-          
+          path: dapa-${{ github.ref_name }}-linux-x86_64-intel.zip
 
   build-windows:
     runs-on: windows-latest
@@ -75,14 +82,19 @@ jobs:
           version: "15"
       - name: Build
         run: cargo build --release
+      - name: Download blockchain snapshot
+        run: |
+          New-Item -ItemType Directory -Force -Path target/release/mainnet
+          Invoke-WebRequest -Uri "https://node.paymetc.com/snapshot/mainnet.tar.gz" -OutFile "mainnet.tar.gz"
+          tar -xzf mainnet.tar.gz -C target/release/
       - name: Create bat files
         run: |
-          Set-Content -Path target/release/start_node.bat -Value "@echo off`r`necho Starting DAPA Node...`r`ndapa_daemon.exe --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100 --allow-fast-sync --skip-block-template-txs-verification`r`npause"
+          Set-Content -Path target/release/start_node.bat -Value "@echo off`r`necho Starting DAPA Node...`r`ndapa_daemon.exe --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 194.163.189.149:20100`r`npause"
           Set-Content -Path target/release/start_miner.bat -Value "@echo off`r`necho ============================================`r`necho   DAPA Miner - Edit this file before running`r`necho   Open with Notepad and replace YOUR_WALLET_ADDRESS`r`necho   with your dap: address e.g. dap:abc123...`r`necho   Also replace YOUR_WORKER_NAME with a name for your miner`r`necho ============================================`r`necho.`r`ndapa_miner.exe --daemon-address 194.163.189.149:20101 --miner-address dap:YOUR_WALLET_ADDRESS --num-threads 2 --worker YOUR_WORKER_NAME`r`npause"
       - name: Package
         run: |
           cd target/release
-          Compress-Archive -Path dapa_daemon.exe,dapa_wallet.exe,dapa_miner.exe,start_node.bat,start_miner.bat -DestinationPath ../../dapa-${{ github.ref_name }}-windows-x86_64.zip
+          Compress-Archive -Path dapa_daemon.exe,dapa_wallet.exe,dapa_miner.exe,start_node.bat,start_miner.bat,mainnet -DestinationPath ../../dapa-${{ github.ref_name }}-windows-x86_64.zip
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -101,36 +113,31 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body: |
-            ## DAPA Blockchain ${{ github.ref_name }} � Official Binaries
+            ## DAPA Blockchain ${{ github.ref_name }} - Official Binaries
 
             Pre-compiled binaries for the DAPA Blockchain network.
-            Includes daemon, wallet, and miner for Linux and Windows.
+            Includes daemon, wallet, miner, and pre-synced blockchain for Linux and Windows.
 
             ### Downloads
-            - `dapa-linux-x86_64-amd.zip` � Linux x86_64 (Ubuntu, Debian, CentOS)
-            - `dapa-windows-x86_64.zip` � Windows 10/11 x86_64
-            - macOS � coming soon
+            - `dapa-linux-x86_64-amd.zip` - Linux x86_64 AMD
+            - `dapa-linux-x86_64-intel.zip` - Linux x86_64 Intel
+            - `dapa-windows-x86_64.zip` - Windows 10/11 x86_64
 
-            ### What's included in each zip
-            - `dapa_daemon` � Full node / blockchain daemon
-            - `dapa_wallet` � CLI wallet for sending and receiving DAPA
-            - `dapa_miner` � CPU miner (XelisHashV3)
-            - `start_node` � Quick start script for running a node
-            - `start_miner` � Quick start script for mining (edit with your wallet address and worker name first)
+            ### What's included
+            - `dapa_daemon` - Full node / blockchain daemon
+            - `dapa_wallet` - CLI wallet
+            - `dapa_miner` - CPU miner (XelisHashV3)
+            - `start_node` - Quick start script
+            - `start_miner` - Quick start script (edit with your wallet address)
+            - `mainnet/` - Pre-synced blockchain — no waiting, starts immediately
 
-            ### Quick Start � Mining
-            The fastest way to start mining is to use the config generator at [mine.dapahe.com](https://mine.dapahe.com) � enter your wallet address and get your launch command in 60 seconds.
-
-            **Windows:** Edit `start_miner.bat` with Notepad, replace `YOUR_WALLET_ADDRESS` with your `dap:` address and `YOUR_WORKER_NAME` with a name for your miner, then double-click it.
-
-            **Linux:** Edit `start_miner.sh`, replace `YOUR_WALLET_ADDRESS` and `YOUR_WORKER_NAME`, then run `./start_miner.sh`
-
-            ### Quick Start � Running a Node
+            ### Quick Start - Node
             **Windows:** Double-click `start_node.bat`
-
             **Linux:** Run `./start_node.sh`
 
-            > WARNING: Never use `--allow-boost-sync` � this causes database corruption. Always use `--allow-fast-sync` for initial sync.
+            ### Quick Start - Mining
+            **Windows:** Edit `start_miner.bat` with Notepad, replace `YOUR_WALLET_ADDRESS` and `YOUR_WORKER_NAME`, double-click.
+            **Linux:** Edit `start_miner.sh`, replace `YOUR_WALLET_ADDRESS` and `YOUR_WORKER_NAME`, run `./start_miner.sh`
 
             ### Network
             - **P2P Port:** 20100
