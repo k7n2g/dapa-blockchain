@@ -140,33 +140,26 @@ Current dev fee curve:
 
 ### Quick Start
 
-The fastest way to get a node running is with fast sync, which downloads only the necessary chain state rather than replaying every block from genesis:
+Download the latest release from [GitHub Releases](https://github.com/k7n2g/dapa-blockchain/releases/latest).
 
+Each release zip includes a **pre-synced blockchain** — no waiting, no sync issues, starts immediately.
+
+**Windows:** Double-click `start_node.bat`
+
+**Linux:**
 ```bash
-./dapa_daemon \
-  --p2p-bind-address 0.0.0.0:20100 \
-  --rpc-bind-address 0.0.0.0:20101 \
-  --priority-nodes 194.163.189.149:20100 \
-  --allow-fast-sync \
-  --skip-block-template-txs-verification
+chmod +x start_node.sh
+./start_node.sh
 ```
 
-> ⚠️ **IMPORTANT — Read before syncing:**
->
-> - ✅ Always use `--allow-fast-sync` for initial sync. This is safe and reliable.
-> - ✅ Use `--skip-block-template-txs-verification` to skip verification of historical block transactions during sync.
-> - ❌ **Never use `--allow-boost-sync`** — this causes **database corruption** and will break your node. Do not use it under any circumstances.
+That is all. The node starts, connects to peers, and continues syncing from the current tip.
 
 ### Recommended Production Setup
-
 ```bash
 ./dapa_daemon \
-  --network mainnet \
   --p2p-bind-address 0.0.0.0:20100 \
   --rpc-bind-address 0.0.0.0:20101 \
-  --priority-nodes 194.163.189.149:20100 \
-  --allow-fast-sync \
-  --skip-block-template-txs-verification
+  --priority-nodes 194.163.189.149:20100
 ```
 
 - Open port `20100` for P2P so peers can connect to your node.
