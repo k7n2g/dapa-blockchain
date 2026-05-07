@@ -242,6 +242,18 @@ impl<S: Storage> GetWorkServer<S> {
     // each miner have his own task so nobody wait on other
     pub async fn notify_new_job(&self) -> Result<(), InternalRpcError> {
         trace!("notify new job");
+
+        // Don't notify miners if node is still syncing
+        {
+            let p2p = self.blockchain.get_p2p().read().await;
+            if let Some(p2p) = p2p.as_ref() {
+                if p2p.is_syncing_chain() {
+                    debug!("Node is syncing, skipping miner notification");
+                    return Ok(());
+                }
+            }
+        }
+
         // Check that there is at least one miner connected
         // otherwise, no need to build a new job
         let is_event_tracked = {
@@ -472,6 +484,16 @@ impl<S: Storage> WebSocketHandler for GetWorkServer<S> {
         }
 
         let key = address.to_public_key();
+
+        // Reject miners if node is not yet synced with the network
+        {
+            let p2p = self.blockchain.get_p2p().read().await;
+            if let Some(p2p) = p2p.as_ref() {
+                if p2p.is_syncing_chain() {
+                    return Ok(Some(HttpResponse::ServiceUnavailable().body("Node is not yet synced with the network. Please try again shortly.")));
+                }
+            }
+        }
 
         // We can directly send it here as it's buffered by the channel
         debug!("trying to send initial job to new miner");
