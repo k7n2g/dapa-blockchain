@@ -370,6 +370,7 @@ impl<S: Storage> Blockchain<S> {
         // create P2P Server
         if !config.p2p.disable {
             let dir_path = config.dir_path;
+            let rpc_config = config.rpc;
             let config = config.p2p;
             info!("Starting P2p server...");
             // setup exclusive nodes
@@ -443,6 +444,18 @@ impl<S: Storage> Blockchain<S> {
                 Ok(p2p) => {
                     *arc.p2p.write().await = Some(p2p.clone());
 
+                    // Start RPC BEFORE priority node connections to prevent sync starving RPC init
+                    if !rpc_config.disable {
+                        info!("RPC Server will listen on: {}", rpc_config.bind_address);
+                        match DaemonRpcServer::new(
+                            Arc::clone(&arc),
+                            rpc_config
+                        ).await {
+                            Ok(server) => *arc.rpc.write().await = Some(server),
+                            Err(e) => error!("Error while starting RPC server: {}", e)
+                        };
+                    }
+
                     // connect to priority nodes
                     for addr in config.priority_nodes {
                         for origin in addr.split(",") {
@@ -477,17 +490,7 @@ impl<S: Storage> Blockchain<S> {
             };
         }
 
-        // create RPC Server
-        if !config.rpc.disable {
-            info!("RPC Server will listen on: {}", config.rpc.bind_address);
-            match DaemonRpcServer::new(
-                Arc::clone(&arc),
-                config.rpc
-            ).await {
-                Ok(server) => *arc.rpc.write().await = Some(server),
-                Err(e) => error!("Error while starting RPC server: {}", e)
-            };
-        }
+        // RPC Server is now started before P2P priority node connections (see above)
 
         // Start the simulator task if necessary
         if let Some(simulator) = arc.simulator {
