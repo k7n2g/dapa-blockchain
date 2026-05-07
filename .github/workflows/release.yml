@@ -51,7 +51,7 @@ jobs:
       - name: Download blockchain snapshot
         run: |
           mkdir -p target/release/mainnet
-          curl -L https://node.dapahe.com.com/snapshot/mainnet.tar.gz | tar -xz -C target/release/
+          curl -L https://node.dapahe.com/snapshot/mainnet.tar.gz | tar -xz -C target/release/
       - name: Create start scripts
         run: |
           printf '#!/bin/bash\necho "Starting DAPA Node..."\n./dapa_daemon --p2p-bind-address 0.0.0.0:20100 --rpc-bind-address 0.0.0.0:20101 --priority-nodes 37.60.236.124:20100\n' > target/release/start_node.sh
