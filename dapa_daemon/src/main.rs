@@ -189,7 +189,7 @@ pub struct CliConfig {
     generate_config_template: bool,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 32)]
 async fn main() -> Result<()> {
     init();
 

@@ -2201,9 +2201,10 @@ impl<S: Storage> Blockchain<S> {
             debug!("Block {} saved on disk", block_hash);
         }
 
-        // trace!("Re acquiring storage in read mode for block {}", block_hash);
-        // let storage = storage.downgrade();
-        // trace!("Storage read lock acquired for block {}", block_hash);
+        // Release write lock - allow RPC reads while computing DAG order
+        // Semaphore is still held so no other writer can run
+        drop(storage);
+        let storage = holder.read().await?;
 
         let mut tips = storage.get_tips().await?;
         // TODO: best would be to not clone
@@ -2229,8 +2230,8 @@ impl<S: Storage> Blockchain<S> {
         debug!("Generated full order size: {}, with base ({}) topo height: {}", full_order.len(), base_hash, base_topo_height);
         trace!("Full order: {}", full_order.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", "));
 
-        // trace!("Dropping storage read lock for block {}", block_hash);
-        // drop(storage);
+        // Release read lock - RPC can respond freely during this section
+        drop(storage);
 
         // rpc server lock
         let rpc_server = self.rpc.read().await;
@@ -2252,6 +2253,8 @@ impl<S: Storage> Blockchain<S> {
         let block_is_ordered = full_order.contains(block_hash.as_ref());
         // Track if the DAG has been reorganized
         let mut dag_is_overwritten = base_topo_height == 0;
+        // Reacquire write lock for DAG cleanup and transaction execution
+        let mut storage = holder.write().await?;
         {
             let start = Instant::now();
             let mut skipped = 0;
@@ -2940,7 +2943,7 @@ impl<S: Storage> Blockchain<S> {
                     let getwork = getwork.clone();
                     spawn_task("notify-new-job", async move {
                         let start = Instant::now();
-                        if let Err(e) = getwork.get_handler().notify_new_job().await {
+                        if let Err(e) = getwork.get_handler().notify_new_job_rate_limited().await {
                             debug!("Error while notifying new job to miners: {}", e);
                         }
 
