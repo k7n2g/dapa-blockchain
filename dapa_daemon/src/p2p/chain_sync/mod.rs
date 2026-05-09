@@ -79,14 +79,13 @@ impl<S: Storage> P2pServer<S> {
         // This will allow to boost-up syncing for those who want and can be used to use low resources for low devices
         let requested_max_size = self.max_chain_response_size;
 
+        // Build block IDs with per-iteration lock windows to avoid holding read lock across 40+ awaits
+        let blocks_id: IndexSet<BlockId> = self.build_list_of_blocks_id_unlocked().await?;
         let packet = {
-            debug!("locking storage for sync chain request");
-            let storage = self.blockchain.get_storage().read().await;
-            debug!("locked storage for sync chain request");
-            let request = ChainRequest::new(self.build_list_of_blocks_id(&*storage).await?, requested_max_size as u16);
-            trace!("Built a chain request with {} blocks", request.len());
+            let storage = self.blockchain.get_storage_read().await;
             let ping = self.build_generic_ping_packet_with_storage(&*storage).await?;
-            PacketWrapper::new(Cow::Owned(request), Cow::Owned(ping))
+            trace!("Built a chain request with {} blocks", blocks_id.len());
+            PacketWrapper::new(Cow::Owned(ChainRequest::new(blocks_id, requested_max_size as u16)), Cow::Owned(ping))
         };
 
         // Update last chain sync time
@@ -127,58 +126,69 @@ impl<S: Storage> P2pServer<S> {
         // Lowest height of the blocks sent
         let mut lowest_common_height = None;
         
-        let common_point = {
-            let storage = self.blockchain.get_storage().read().await;
+        // Step 1: Brief lock - get common point and chain metadata only, release immediately
+        // Prevents holding storage read lock across hundreds/thousands of async block lookups
+        // which blocks add_new_block write lock and deadlocks all tokio worker threads
+        let (common_point, top_topoheight, top_height, unstable_height) = {
+            let storage = self.blockchain.get_storage_read().await;
             let common_point = self.find_common_point(&*storage, blocks).await?;
             debug!("storage locked for chain request");
 
-            if let Some(common_point) = &common_point {
-                let mut topoheight = common_point.get_topoheight();
-                // lets add all blocks ordered hash
+            if let Some(cp) = &common_point {
                 let chain_cache = storage.chain_cache().await;
                 let top_topoheight = chain_cache.topoheight;
-                // used to detect if we find unstable height for alt tips
-                let mut unstable_height = None;
                 let top_height = chain_cache.height;
-                // check to see if we should search for alt tips (and above unstable height)
-                let should_search_alt_tips = top_topoheight - topoheight < accepted_response_size as u64;
-
-                // Don't search for block below our DAG common point order
-                let common_block_height = storage.get_height_for_block_hash(&common_point.get_hash()).await?;
-                if should_search_alt_tips {
+                let should_search_alt_tips = top_topoheight - cp.get_topoheight() < accepted_response_size as u64;
+                let common_block_height = storage.get_height_for_block_hash(&cp.get_hash()).await?;
+                let unstable_height = if should_search_alt_tips {
                     debug!("Peer is near to be synced, will send him alt tips blocks");
-                    unstable_height = Some(chain_cache.stable_height.max(common_block_height) + 1);
-                }
+                    Some(chain_cache.stable_height.max(common_block_height) + 1)
+                } else {
+                    None
+                };
+                (common_point, top_topoheight, top_height, unstable_height)
+            } else {
+                (common_point, 0u64, 0u64, None)
+            }
+        }; // Storage lock released here - add_new_block can now acquire write lock freely
 
-                // Search the lowest height
+        // Step 2: Build response with per-iteration lock windows (never hold lock across loop)
+        let common_point = {
+            if let Some(common_point) = &common_point {
+                let mut topoheight = common_point.get_topoheight();
                 let mut lowest_height = top_height;
 
-                // complete ChainResponse blocks until we are full or that we reach the top topheight
+                // complete ChainResponse blocks until we are full or that we reach the top topoheight
+                // Each iteration acquires and releases storage lock independently
                 while response_blocks.len() < accepted_response_size && topoheight <= top_topoheight {
                     trace!("looking for hash at topoheight {}", topoheight);
-                    let hash = storage.get_hash_at_topo_height(topoheight).await?;
 
-                    // Find the lowest height
-                    let height = storage.get_height_for_block_hash(&hash).await?;
-                    if height < lowest_height {
-                        lowest_height = height;
-                    }
+                    let (hash, height, swap) = {
+                        let storage = self.blockchain.get_storage_read().await;
+                        let hash = storage.get_hash_at_topo_height(topoheight).await?;
+                        let height = storage.get_height_for_block_hash(&hash).await?;
 
-                    let mut swap = false;
-                    if let Some(previous_hash) = response_blocks.last() {
-                        let version = hard_fork::get_version_at_height(self.blockchain.get_network(), height);
-                        // Due to the TX being orphaned, some TXs may be in the wrong order in V1
-                        // It has been sorted in V2 and should not happen anymore
-                        if (version == BlockVersion::V0 || version >= BlockVersion::V3) && storage.has_block_position_in_order(&hash).await? && storage.has_block_position_in_order(&previous_hash).await? {
-                            let position = storage.get_block_position_in_order(&hash).await?;
-                            let previous_position = storage.get_block_position_in_order(&previous_hash).await?;
-                            // if the block is a side block, we need to check if it's in the right order
-                            if position < previous_position {
-                                if blockdag::is_side_block_internal(&*storage, &hash, Some(topoheight), top_topoheight, version).await? {
-                                    swap = true;
+                        let mut swap = false;
+                        if let Some(previous_hash) = response_blocks.last() {
+                            let version = hard_fork::get_version_at_height(self.blockchain.get_network(), height);
+                            // Due to the TX being orphaned, some TXs may be in the wrong order in V1
+                            // It has been sorted in V2 and should not happen anymore
+                            if (version == BlockVersion::V0 || version >= BlockVersion::V3) && storage.has_block_position_in_order(&hash).await? && storage.has_block_position_in_order(previous_hash).await? {
+                                let position = storage.get_block_position_in_order(&hash).await?;
+                                let previous_position = storage.get_block_position_in_order(previous_hash).await?;
+                                // if the block is a side block, we need to check if it's in the right order
+                                if position < previous_position {
+                                    if blockdag::is_side_block_internal(&*storage, &hash, Some(topoheight), top_topoheight, version).await? {
+                                        swap = true;
+                                    }
                                 }
                             }
                         }
+                        (hash, height, swap)
+                    }; // Lock released per iteration
+
+                    if height < lowest_height {
+                        lowest_height = height;
                     }
 
                     if swap {
@@ -196,15 +206,22 @@ impl<S: Storage> P2pServer<S> {
                 }
                 lowest_common_height = Some(lowest_height);
 
-                // now, lets check if peer is near to be synced, and send him alt tips blocks
+                // Step 3: alt tips with per-height lock windows
                 if let Some(unstable_height) = unstable_height {
                     trace!("unstable height: {}, top height: {}", unstable_height, top_height);
                     for height in unstable_height..=top_height {
                         trace!("get blocks at height {} for top blocks", height);
-                        for hash in storage.get_blocks_at_height(height).await? {
-                            // If we don't have this block in response blocks and it's not already in topological order
-                            // we can add it to top blocks
-                            if !response_blocks.contains(&hash) && !storage.is_block_topological_ordered(&hash).await? {
+                        let (hashes, ordered_flags) = {
+                            let storage = self.blockchain.get_storage_read().await;
+                            let hashes = storage.get_blocks_at_height(height).await?;
+                            let mut flags = Vec::with_capacity(hashes.len());
+                            for h in &hashes {
+                                flags.push(storage.is_block_topological_ordered(h).await?);
+                            }
+                            (hashes, flags)
+                        };
+                        for (hash, is_ordered) in hashes.into_iter().zip(ordered_flags) {
+                            if !response_blocks.contains(&hash) && !is_ordered {
                                 trace!("Adding top block at height {}: {}", height, hash);
                                 if !top_blocks.insert(hash) {
                                     debug!("Top block was already present in response top blocks");
@@ -219,7 +236,7 @@ impl<S: Storage> P2pServer<S> {
                 // Too many top blocks, use the one with highest difficulty
                 if top_blocks.len() >= u8::MAX as usize {
                     debug!("Too many top blocks ({}), sorting and keeping only the best ones", top_blocks.len());
-                    // sort and keep only the best ones
+                    let storage = self.blockchain.get_storage_read().await;
                     let iter = blockdag::sort_tips(&*storage, top_blocks.into_iter()).await?;
                     top_blocks = iter.take(u8::MAX as usize).collect();
                 }
@@ -352,7 +369,7 @@ impl<S: Storage> P2pServer<S> {
                 info!("Requesting more blocks from peer for validation using last block {}", last_block);
                 // Request the next chunk from the peer
                 let packet = {
-                    let storage = self.blockchain.get_storage().read().await;
+                    let storage = self.blockchain.get_storage_read().await;
                     let mut blocks_id = IndexSet::new();
                     // Start from where we left off
                     blocks_id.insert(BlockId::new(last_block, expected_topoheight - 1));
@@ -548,7 +565,7 @@ impl<S: Storage> P2pServer<S> {
         let mut common_topoheight = common_point.get_topoheight();
         debug!("{} found a common point with block {} at topo {} for sync, received {} blocks", peer.get_outgoing_address(), common_point.get_hash(), common_topoheight, response_size);
         let (pop_count, our_previous_topoheight, our_previous_height, our_stable_topoheight) = {
-            let storage = self.blockchain.get_storage().read().await;
+            let storage = self.blockchain.get_storage_read().await;
             let expected_common_topoheight = storage.get_topo_height_for_hash(common_point.get_hash()).await?;
 
             let chain_cache = storage.chain_cache().await;

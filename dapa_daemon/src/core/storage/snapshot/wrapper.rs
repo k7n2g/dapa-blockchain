@@ -87,7 +87,18 @@ impl<'a, S: Storage> StorageHolder<'a, S> {
     pub async fn read(&self) -> Result<StorageReadGuard<'_, S>, BlockchainError> {
         match self {
             StorageHolder::Storage(storage) => {
-                let guard = storage.read().await;
+                // Use try_read with backoff instead of read().await
+                // read().await queues behind pending writers, blocking new readers
+                // causing all tokio worker threads to fill up = deadlock
+                // With try_read + sleep, we yield and let writers complete naturally
+                let guard = loop {
+                    if let Ok(g) = storage.try_read() {
+                        break g;
+                    }
+                    dapa_common::tokio::time::sleep(
+                        dapa_common::tokio::time::Duration::from_millis(1)
+                    ).await;
+                };
                 Ok(StorageReadGuard::Storage(guard))
             },
             StorageHolder::Snapshot(wrapper) => {

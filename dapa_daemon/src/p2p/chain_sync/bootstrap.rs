@@ -64,7 +64,7 @@ impl<S: Storage> P2pServer<S> {
             return Err(P2pError::FastSyncDisabled.into())
         }
 
-        let storage = self.blockchain.get_storage().read().await;
+        let storage = self.blockchain.get_storage_read().await;
         let pruned_topoheight = storage.get_pruned_topoheight().await?.unwrap_or(0);
         if let Some(topoheight) = request.get_requested_topoheight() {
             let chain_cache = storage.chain_cache().await;
@@ -86,8 +86,10 @@ impl<S: Storage> P2pServer<S> {
             }
         }
 
+        drop(storage); // Release read lock - each arm acquires its own brief lock
         let response = match request {
             StepRequest::ChainInfo(blocks) => {
+                let storage = self.blockchain.get_storage_read().await;
                 let common_point = self.find_common_point(&*storage, blocks).await?;
                 let tips = storage.get_tips().await?;
                 let height_by_tips = blockdag::calculate_height_at_tips::<S, _>(&storage, tips.iter()).await?;
@@ -98,6 +100,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::ChainInfo(common_point, stable_topo, height, hash)
             },
             StepRequest::Assets(min, max, page) => {
+                let storage = self.blockchain.get_storage_read().await;
                 if min > max {
                     warn!("Invalid range for assets");
                     return Err(P2pError::MalformedPacket.into())
@@ -124,6 +127,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::Assets(assets, page)
             },
             StepRequest::AssetsSupply(topoheight, assets) => {
+                let storage = self.blockchain.get_storage_read().await;
                 // move references only
                 let storage = &storage;
 
@@ -134,13 +138,14 @@ impl<S: Storage> P2pServer<S> {
 
                         Ok::<_, BlockchainError>(supply)
                     })
-                    .buffered(self.stream_concurrency)
+                    .buffered(1)
                     .try_collect()
                     .await?;
 
                 StepResponse::AssetsSupply(assets_supply)
             },
             StepRequest::KeyBalances(key, min, max, page) => {
+                let storage = self.blockchain.get_storage_read().await;
                 if min > max {
                     warn!("Invalid range for key assets");
                     return Err(P2pError::MalformedPacket.into())
@@ -162,7 +167,7 @@ impl<S: Storage> P2pServer<S> {
                         let summary = storage.get_account_summary_for(&key, &asset, min, max).await?;
                         Ok::<_, BlockchainError>((asset, summary))
                     })
-                    .buffered(self.stream_concurrency)
+                    .buffered(1)
                     .try_collect::<IndexMap<_, _>>()
                     .await?;
 
@@ -176,6 +181,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::KeyBalances(assets, page)
             },
             StepRequest::SpendableBalances(key, asset, min, max) => {
+                let storage = self.blockchain.get_storage_read().await;
                 if min > max {
                     warn!("Invalid range for spendable balances");
                     return Err(P2pError::MalformedPacket.into())
@@ -201,6 +207,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::SpendableBalances(balances, next_max)
             },
             StepRequest::Accounts(min, max, keys) => {
+                let storage = self.blockchain.get_storage_read().await;
                 if min > max {
                     warn!("Invalid range for accounts");
                     return Err(P2pError::MalformedPacket.into())
@@ -235,13 +242,14 @@ impl<S: Storage> P2pServer<S> {
 
                         Ok::<_, BlockchainError>((nonce, multisig))
                     })
-                    .buffered(self.stream_concurrency)
+                    .buffered(1)
                     .try_collect()
                     .await?;
 
                 StepResponse::Accounts(states)
             },
             StepRequest::Keys(min, max, page) => {
+                let storage = self.blockchain.get_storage_read().await;
                 if min > max {
                     warn!("Invalid range for keys");
                     return Err(P2pError::MalformedPacket.into())
@@ -261,6 +269,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::Keys(keys, page)
             },
             StepRequest::Contracts(min, max, page) => {
+                let storage = self.blockchain.get_storage_read().await;
                 if min > max {
                     warn!("Invalid range for contracts");
                     return Err(P2pError::MalformedPacket.into())
@@ -280,6 +289,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::Contracts(contracts, page)
             },
             StepRequest::ContractModule(min, max, contract) => {
+                let storage = self.blockchain.get_storage_read().await;
                 if min > max {
                     warn!("Invalid range for contract metadata");
                     return Err(P2pError::MalformedPacket.into())
@@ -303,6 +313,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::ContractModule(state)
             },
             StepRequest::ContractBalances(contract, topoheight, page) => {
+                let storage = self.blockchain.get_storage_read().await;
                 let page = page.unwrap_or(0);
                 let assets = storage.get_contract_assets_for(&contract).await?
                     .skip(page as usize * MAX_ITEMS_PER_PAGE)
@@ -318,7 +329,7 @@ impl<S: Storage> P2pServer<S> {
                         let balance = storage.get_contract_balance_at_maximum_topoheight(contract, &asset, topoheight).await?;
                         Ok::<_, BlockchainError>(balance.map(|(_, v)| (asset, v.take())))
                     })
-                    .buffered(self.stream_concurrency)
+                    .buffered(1)
                     .boxed()
                     .filter_map(|res| async move { res.transpose() })
                     .try_collect::<IndexMap<Hash, u64>>().await?;
@@ -331,6 +342,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::ContractBalances(balances, page)
             },
             StepRequest::ContractStores(contract, topoheight, skip) => {
+                let storage = self.blockchain.get_storage_read().await;
                 // Calculate the maximum allowed packet size (minus overhead)
                 const MAX_RESPONSE_SIZE: usize = (PEER_MAX_PACKET_SIZE - 40) as usize;
 
@@ -373,6 +385,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::ContractStores(entries, next_skip)
             },
             StepRequest::ContractsExecutions(min, max, page) => {
+                let storage = self.blockchain.get_storage_read().await;
                 let page = page.unwrap_or(0);
 
                 let stream = storage.get_registered_contract_scheduled_executions_in_range(min, max, Some(max)).await?
@@ -395,6 +408,7 @@ impl<S: Storage> P2pServer<S> {
                 StepResponse::ContractsExecutions(executions, page)
             }
             StepRequest::BlocksMetadata(topoheight) => {
+                let storage = self.blockchain.get_storage_read().await;
                 // go from the lowest available point until the requested stable topoheight
                 let lower = if topoheight - PRUNE_SAFETY_LIMIT <= pruned_topoheight {
                     pruned_topoheight + 1
@@ -425,7 +439,7 @@ impl<S: Storage> P2pServer<S> {
 
                         Ok::<_, BlockchainError>(BlockMetadata { hash, topoheight_metadata, difficulty, cumulative_difficulty, p, size_ema, executed_transactions })
                     })
-                    .buffered(self.stream_concurrency)
+                    .buffered(1)
                     .try_collect()
                     .await?;
 
@@ -448,7 +462,7 @@ impl<S: Storage> P2pServer<S> {
 
         let mut stable_topoheight = 0;
         let (mut step, mut our_topoheight) = {
-            let storage = self.blockchain.get_storage().read().await;
+            let storage = self.blockchain.get_storage_read().await;
             let chain_cache = storage.chain_cache().await;
             (Some(StepRequest::ChainInfo(self.build_list_of_blocks_id(&*storage).await?)), chain_cache.topoheight)
         };
@@ -578,7 +592,7 @@ impl<S: Storage> P2pServer<S> {
                             // We request our current keys so we don't miss them
                             info!("Requesting local keys #{} until our topoheight {}", i, our_topoheight);
                             let keys = {
-                                let storage = self.blockchain.get_storage().read().await;
+                                let storage = self.blockchain.get_storage_read().await;
                                 // We search with no bounds, if they don't exists anymore they will either get deleted or updated
                                 let keys: IndexSet<PublicKey> = storage.get_registered_keys(None, None).await?
                                     .skip(skip)

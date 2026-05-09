@@ -79,7 +79,7 @@ use dapa_common::{
         is_multi_threads_supported,
         task::spawn_blocking,
         net::lookup_host,
-        sync::{RwLock, Semaphore}
+        sync::{RwLock, RwLockReadGuard, Semaphore}
     },
     varuint::VarUint,
     contract::{ContractMetadata, ContractVersion, build_environment},
@@ -1117,6 +1117,19 @@ impl<S: Storage> Blockchain<S> {
     #[inline(always)]
     pub fn get_storage(&self) -> &RwLock<S> {
         &self.storage
+    }
+
+    // Non-blocking read - yields and retries rather than queuing behind writers
+    // Prevents tokio worker thread starvation when writes are pending
+    pub async fn get_storage_read(&self) -> RwLockReadGuard<'_, S> {
+        loop {
+            if let Ok(g) = self.storage.try_read() {
+                return g;
+            }
+            dapa_common::tokio::time::sleep(
+                dapa_common::tokio::time::Duration::from_millis(1)
+            ).await;
+        }
     }
 
     // Returns the blockchain mempool used

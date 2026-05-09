@@ -193,7 +193,7 @@ impl<S: Storage> GetWorkServer<S> {
                 // generate a mining job
                 let (header, difficulty) = {
                     debug!("locking storage for mining job generation");
-                    let storage = self.blockchain.get_storage().read().await;
+                    let storage = self.blockchain.get_storage_read().await;
                     debug!("storage read acquired for mining job generation");
     
                     let header = self.blockchain.get_block_template_for_storage(&storage, DEV_PUBLIC_KEY.clone()).await
@@ -280,7 +280,7 @@ impl<S: Storage> GetWorkServer<S> {
         debug!("Notify all miners for a new job");
         let (header, difficulty, topoheight) = {
             debug!("locking storage for new job");
-            let storage = self.blockchain.get_storage().read().await;
+            let storage = self.blockchain.get_storage_read().await;
             debug!("storage read acquired for new job");
 
             let header = self.blockchain.get_block_template_for_storage(&storage, DEV_PUBLIC_KEY.clone()).await

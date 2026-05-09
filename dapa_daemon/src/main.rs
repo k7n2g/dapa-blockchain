@@ -189,7 +189,7 @@ pub struct CliConfig {
     generate_config_template: bool,
 }
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 32)]
+#[tokio::main(flavor = "multi_thread", worker_threads = 8)]
 async fn main() -> Result<()> {
     init();
 
@@ -499,7 +499,7 @@ async fn verify_chain<S: Storage>(manager: &CommandManager, mut args: ArgumentMa
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
 
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let mut pruned_topoheight = storage.get_pruned_topoheight().await.context("Error on pruned topoheight")?.unwrap_or(0);
     let mut expected_supply = if pruned_topoheight > 0 {
         let supply = storage.get_emitted_supply_at_topo_height(pruned_topoheight).await
@@ -606,7 +606,7 @@ async fn show_emitted_supply_at_topoheight<S: Storage>(manager: &CommandManager,
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
 
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
 
     let topoheight: u64 = if args.has_argument("topoheight") {
         args.get_value("topoheight")?.to_number()?
@@ -626,7 +626,7 @@ async fn show_emitted_supply_at_topoheight<S: Storage>(manager: &CommandManager,
 async fn list_unexecuted_transactions<S: Storage>(manager: &CommandManager, _: ArgumentManager) -> Result<(), CommandError> {
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let unexecuted = storage.get_unexecuted_transactions().await
         .context("Error while retrieving unexecuted transactions")?;
 
@@ -664,7 +664,7 @@ async fn show_block_execution_position<S: Storage>(manager: &CommandManager, _: 
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
     let prompt = manager.get_prompt();
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
 
     let hash = prompt.read_hash("Block hash: ").await
         .context("Error while reading block hash")?;
@@ -681,7 +681,7 @@ async fn print_balance<S: Storage>(manager: &CommandManager, _: ArgumentManager)
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
     let prompt = manager.get_prompt();
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
 
     let address = prompt.read_input("Address: ", false).await
         .context("Error while reading address")?;
@@ -705,7 +705,7 @@ async fn print_balance<S: Storage>(manager: &CommandManager, _: ArgumentManager)
 async fn estimate_db_size<S: Storage>(manager: &CommandManager, _: ArgumentManager) -> Result<(), CommandError> {
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let size = storage.estimate_size().await.context("Error while estimating size")?;
     manager.message(format!("Estimated size: {}", human_bytes(size as f64)));
 
@@ -715,7 +715,7 @@ async fn estimate_db_size<S: Storage>(manager: &CommandManager, _: ArgumentManag
 async fn list_orphaned_blocks<S: Storage>(manager: &CommandManager, _: ArgumentManager) -> Result<(), CommandError> {
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let orphaned_blocks = storage.get_orphaned_blocks().await
         .context("Error while counting orphaned blocks")?;
 
@@ -1006,7 +1006,7 @@ async fn list_assets<S: Storage>(manager: &CommandManager, mut arguments: Argume
 
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let assets = storage.get_assets().await
         .context("Error while fetching assets")?
         .collect::<Result<Vec<_>, _>>()
@@ -1106,7 +1106,7 @@ async fn show_balance<S: Storage>(manager: &CommandManager, mut arguments: Argum
     let key = address.to_public_key();
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     if !storage.has_balance_for(&key, &asset).await.context("Error while checking if address has balance")? {
         manager.message("No balance found for address");
         return Ok(());
@@ -1144,7 +1144,7 @@ async fn show_multisig<S: Storage>(manager: &CommandManager, _: ArgumentManager)
 
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let (topoheight, multisig) = storage.get_last_multisig(address.get_public_key()).await
         .context("Error while retrieving multisig")?;
 
@@ -1172,7 +1172,7 @@ async fn show_multisig<S: Storage>(manager: &CommandManager, _: ArgumentManager)
 async fn print_block<S: Storage>(manager: &CommandManager, mut arguments: ArgumentManager) -> Result<(), CommandError> {
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let hash = arguments.get_value("hash")?.to_hash()?;
     let response = get_block_response_for_hash(blockchain, &storage, &hash, false).await.context("Error while building block response")?;
     let json = serde_json::to_string_pretty(&response).context("Error while serializing")?;
@@ -1185,7 +1185,7 @@ async fn print_block<S: Storage>(manager: &CommandManager, mut arguments: Argume
 async fn dump_tx<S: Storage>(manager: &CommandManager, mut arguments: ArgumentManager) -> Result<(), CommandError> {
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let hash = arguments.get_value("hash")?.to_hash()?;
     let tx = storage.get_transaction(&hash).await.context("Error while retrieving transaction")?;
     let hex = tx.to_hex();
@@ -1197,7 +1197,7 @@ async fn dump_tx<S: Storage>(manager: &CommandManager, mut arguments: ArgumentMa
 async fn dump_block<S: Storage>(manager: &CommandManager, mut arguments: ArgumentManager) -> Result<(), CommandError> {
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let hash = arguments.get_value("hash")?.to_hash()?;
     let block = storage.get_block_by_hash(&hash).await.context("Error while retrieving block")?;
     let hex = block.to_hex();
@@ -1209,7 +1209,7 @@ async fn dump_block<S: Storage>(manager: &CommandManager, mut arguments: Argumen
 async fn top_block<S: Storage>(manager: &CommandManager, _: ArgumentManager) -> Result<(), CommandError> {
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let hash = blockchain.get_top_block_hash_for_storage(&storage).await.context("Error on top block hash")?;
     let response = get_block_response_for_hash(blockchain, &storage, &hash, false).await.context("Error while building block response")?;
     let json = serde_json::to_string_pretty(&response).context("Error while serializing")?;
@@ -1248,7 +1248,7 @@ async fn clear_mempool<S: Storage>(manager: &CommandManager, _: ArgumentManager)
 async fn inspect_contract<S: Storage>(manager: &CommandManager, mut arguments: ArgumentManager) -> Result<(), CommandError> {
     let context = manager.get_context().lock()?;
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let topoheight = storage.chain_cache().await.topoheight;
 
     let contract = if arguments.has_argument("contract") {
@@ -1356,7 +1356,7 @@ async fn block_size_dataset<S: Storage>(manager: &CommandManager, mut arguments:
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
 
     manager.message("Creating block size dataset...");
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let chain_cache = storage.chain_cache().await;
 
     for topoheight in (0..=chain_cache.topoheight).rev() {
@@ -1405,7 +1405,7 @@ async fn circulating_supply_dataset<S: Storage>(manager: &CommandManager, mut ar
     let blockchain: &Arc<Blockchain<S>> = context.get()?;
 
     manager.message("Creating circulating supply dataset...");
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     let chain_cache = storage.chain_cache().await;
 
     let mut prev_topo = Some(chain_cache.topoheight);
@@ -1472,7 +1472,7 @@ async fn status<S: Storage>(manager: &CommandManager, _: ArgumentManager) -> Res
 
 
     debug!("Retrieving blockchain info from storage");
-    let storage = blockchain.get_storage().read().await;
+    let storage = blockchain.get_storage_read().await;
     debug!("storage read lock acquired");
     let chain_cache = storage.chain_cache().await;
 
@@ -1726,7 +1726,7 @@ async fn difficulty_dataset<S: Storage>(manager: &CommandManager, mut arguments:
     for topoheight in 0..=topoheight {
         // Retrieve block hash and header
         let (solve_time, height, difficulty, version, timestamp) = {
-            let storage = blockchain.get_storage().read().await;
+            let storage = blockchain.get_storage_read().await;
             let (hash, header) = storage.get_block_header_at_topoheight(topoheight).await
                 .context("Error while retrieving hash at topo")?;
 

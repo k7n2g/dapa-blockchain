@@ -537,7 +537,7 @@ impl<S: Storage> P2pServer<S> {
             Some(hash) => Cow::Borrowed(hash),
             None => {
                 debug!("no hardcoded genesis block hash found, using the one from the storage");
-                let storage = self.blockchain.get_storage().read().await;
+                let storage = self.blockchain.get_storage_read().await;
                 debug!("storage read acquired for genesis block hash");
                 let hash = storage.get_hash_at_topo_height(0).await?;
                 Cow::Owned(hash)
@@ -569,7 +569,7 @@ impl<S: Storage> P2pServer<S> {
     // We feed the packet with all chain data
     async fn build_handshake(&self) -> Result<Vec<u8>, P2pError> {
         debug!("locking storage for building handshake");
-        let storage = self.blockchain.get_storage().read().await;
+        let storage = self.blockchain.get_storage_read().await;
         debug!("storage lock acquired for building handshake");
         let (block, top_hash) = storage.get_top_block_header().await?;
         let chain_cache = storage.chain_cache().await;
@@ -809,7 +809,7 @@ impl<S: Storage> P2pServer<S> {
     // This will lock the storage for us
     async fn build_generic_ping_packet(&self) -> Result<Ping<'_>, P2pError> {
         debug!("locking storage to build generic ping packet");
-        let storage = self.blockchain.get_storage().read().await;
+        let storage = self.blockchain.get_storage_read().await;
         debug!("storage is locked for generic ping packet");
         self.build_generic_ping_packet_with_storage(&*storage).await
     }
@@ -827,7 +827,7 @@ impl<S: Storage> P2pServer<S> {
         // Search our cumulative difficulty
         let (our_height, our_topoheight, our_cumulative_difficulty) = {
             debug!("locking storage to search our cumulative difficulty");
-            let storage = self.blockchain.get_storage().read().await;
+            let storage = self.blockchain.get_storage_read().await;
 
             let chain_cache = storage.chain_cache().await;
             // We read those after having the storage locked to prevent issue
@@ -2028,7 +2028,7 @@ impl<S: Storage> P2pServer<S> {
                 // check that we don't have this block in our chain
                 {
                     debug!("locking storage for block propagation {}", block_hash);
-                    let storage = self.blockchain.get_storage().read().await;
+                    let storage = self.blockchain.get_storage_read().await;
                     debug!("storage read acquired for block propagation");
                     if storage.has_block_with_hash(&block_hash).await? {
                         debug!("{}: {} with hash {} is already in our chain. Skipping", peer, header, block_hash);
@@ -2178,7 +2178,7 @@ impl<S: Storage> P2pServer<S> {
                     ObjectRequest::Block(hash) => {
                         debug!("{} asked full block {}", peer, hash);
                         let block = {
-                            let storage = self.blockchain.get_storage().read().await;
+                            let storage = self.blockchain.get_storage_read().await;
                             debug!("storage read acquired for full block request");
                             storage.get_block_by_hash(hash).await
                         };
@@ -2197,7 +2197,7 @@ impl<S: Storage> P2pServer<S> {
                     ObjectRequest::BlockHeader(hash) => {
                         debug!("{} asked block header {}", peer, hash);
                         let block = {
-                            let storage = self.blockchain.get_storage().read().await;
+                            let storage = self.blockchain.get_storage_read().await;
                             debug!("storage read acquired for block header request");
                             storage.get_block_header_by_hash(hash).await
                         };
@@ -2801,6 +2801,39 @@ impl<S: Storage> P2pServer<S> {
     // Build a block id list to share our DAG order and chain state
     // Block id list must be in descending order and unique hash / topoheight
     // This is used to search the common point between two peers
+    // Per-iteration lock version - never holds storage lock across multiple awaits
+    // Prevents deadlock when multiple peers trigger this simultaneously
+    // Per-iteration lock version - never holds storage lock across multiple awaits
+    async fn build_list_of_blocks_id_unlocked(&self) -> Result<IndexSet<BlockId>, BlockchainError> {
+        let (topoheight, pruned_topoheight) = {
+            let storage = self.blockchain.get_storage_read().await;
+            let chain_cache = storage.chain_cache().await;
+            let pruned = storage.get_pruned_topoheight().await?.unwrap_or(0);
+            (chain_cache.topoheight, pruned)
+        };
+        let mut blocks: IndexSet<BlockId> = IndexSet::new();
+        let mut i = 0;
+        while i < topoheight && topoheight - i > pruned_topoheight && blocks.len() + 1 < CHAIN_SYNC_REQUEST_MAX_BLOCKS {
+            let current_topo = topoheight - i;
+            let hash = {
+                let storage = self.blockchain.get_storage_read().await;
+                storage.get_hash_at_topo_height(current_topo).await?
+            };
+            blocks.insert(BlockId::new(hash, current_topo));
+            if blocks.len() < CHAIN_SYNC_REQUEST_EXPONENTIAL_INDEX_START {
+                i += 1;
+            } else {
+                i = i * 2;
+            }
+        }
+        let genesis_block = {
+            let storage = self.blockchain.get_storage_read().await;
+            storage.get_hash_at_topo_height(0).await?
+        };
+        blocks.insert(BlockId::new(genesis_block, 0));
+        Ok(blocks)
+    }
+
     async fn build_list_of_blocks_id(&self, storage: &S) -> Result<IndexSet<BlockId>, BlockchainError> {
         let mut blocks = IndexSet::new();
         let chain_cache = storage.chain_cache().await;
