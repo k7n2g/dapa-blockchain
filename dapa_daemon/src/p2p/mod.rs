@@ -835,9 +835,11 @@ impl<S: Storage> P2pServer<S> {
             let our_topoheight = chain_cache.topoheight;
 
             debug!("storage locked for cumulative difficulty");
-            let hash = storage.get_hash_at_topo_height(our_topoheight).await?;
+            let hash = match storage.get_hash_at_topo_height(our_topoheight).await {
+                Ok(h) => h,
+                Err(_) => return Ok(None),
+            };
             let our_cumulative_difficulty = storage.get_cumulative_difficulty_for_block_hash(&hash).await?;
-
             (our_height, our_topoheight, our_cumulative_difficulty)
         };
 
