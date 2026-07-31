@@ -4,10 +4,28 @@ on:
   push:
     tags:
       - 'v*'
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
 
 jobs:
+  determine-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version_tag: ${{ steps.set.outputs.version_tag }}
+    steps:
+      - name: Determine version tag
+        id: set
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "version_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version_tag=nightly" >> "$GITHUB_OUTPUT"
+          fi
+
   build-linux-amd:
     runs-on: ubuntu-latest
+    needs: determine-version
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -29,15 +47,16 @@ jobs:
         run: |
           cd target/release
           strip dapa_daemon dapa_wallet dapa_miner
-          zip -r ../../dapa-${{ github.ref_name }}-linux-x86_64-amd.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh mainnet/
+          zip -r ../../dapa-${{ needs.determine-version.outputs.version_tag }}-linux-x86_64-amd.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh mainnet/
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-amd
-          path: dapa-${{ github.ref_name }}-linux-x86_64-amd.zip
+          path: dapa-${{ needs.determine-version.outputs.version_tag }}-linux-x86_64-amd.zip
 
   build-linux-intel:
     runs-on: ubuntu-latest
+    needs: determine-version
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -61,15 +80,16 @@ jobs:
         run: |
           cd target/release
           strip dapa_daemon dapa_wallet dapa_miner
-          zip -r ../../dapa-${{ github.ref_name }}-linux-x86_64-intel.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh mainnet/
+          zip -r ../../dapa-${{ needs.determine-version.outputs.version_tag }}-linux-x86_64-intel.zip dapa_daemon dapa_wallet dapa_miner start_node.sh start_miner.sh mainnet/
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-intel
-          path: dapa-${{ github.ref_name }}-linux-x86_64-intel.zip
+          path: dapa-${{ needs.determine-version.outputs.version_tag }}-linux-x86_64-intel.zip
 
   build-windows:
     runs-on: windows-latest
+    needs: determine-version
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
@@ -94,15 +114,15 @@ jobs:
       - name: Package
         run: |
           cd target/release
-          Compress-Archive -Path dapa_daemon.exe,dapa_wallet.exe,dapa_miner.exe,start_node.bat,start_miner.bat,mainnet -DestinationPath ../../dapa-${{ github.ref_name }}-windows-x86_64.zip
+          Compress-Archive -Path dapa_daemon.exe,dapa_wallet.exe,dapa_miner.exe,start_node.bat,start_miner.bat,mainnet -DestinationPath ../../dapa-${{ needs.determine-version.outputs.version_tag }}-windows-x86_64.zip
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: dapa-${{ github.ref_name }}-windows-x86_64.zip
+          path: dapa-${{ needs.determine-version.outputs.version_tag }}-windows-x86_64.zip
 
   release:
-    needs: [build-linux-amd, build-linux-intel, build-windows]
+    needs: [determine-version, build-linux-amd, build-linux-intel, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -112,8 +132,11 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.determine-version.outputs.version_tag }}
+          name: DAPA ${{ needs.determine-version.outputs.version_tag }}
+          prerelease: false
           body: |
-            ## DAPA Blockchain ${{ github.ref_name }} - Official Binaries
+            ## DAPA Blockchain ${{ needs.determine-version.outputs.version_tag }} - Official Binaries
 
             Pre-compiled binaries for the DAPA Blockchain network.
             Includes daemon, wallet, miner, and pre-synced blockchain for Linux and Windows.
