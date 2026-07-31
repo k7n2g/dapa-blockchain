@@ -193,6 +193,7 @@ pub struct P2pServer<S: Storage> {
     flags: Flags,
     sync_from_priority_only: bool,
     reorg_from_priority_only: bool,
+    priority_ips: RwLock<IndexSet<IpAddr>>,
 }
 
 impl<S: Storage> P2pServer<S> {
@@ -224,6 +225,7 @@ impl<S: Storage> P2pServer<S> {
         proxy: Option<(ProxyKind, SocketAddr, Option<(String, String)>)>,
         sync_from_priority_only: bool,
         reorg_from_priority_only: bool,
+        priority_ips: Vec<IpAddr>,
     ) -> Result<Arc<Self>, P2pError> {
         if tag.as_ref().is_some_and(|tag| tag.len() == 0 || tag.len() > 16) {
             return Err(P2pError::InvalidTag);
@@ -298,6 +300,7 @@ impl<S: Storage> P2pServer<S> {
             allow_boost_sync_mode,
             max_chain_response_size,
             exclusive_nodes: IndexSet::from_iter(exclusive_nodes.into_iter()),
+            priority_ips: RwLock::new(IndexSet::from_iter(priority_ips.into_iter())),
             allow_priority_blocks,
             is_syncing: AtomicBool::new(false),
             syncing_rate_bps: AtomicU64::new(0),
@@ -461,7 +464,8 @@ impl<S: Storage> P2pServer<S> {
         let zelf = Arc::clone(&self);
         thread_pool.execute(async move {
             let mut buffer = [0; 512];
-            match zelf.create_verified_peer(&mut buffer, connection, false).await {
+            let is_priority = zelf.priority_ips.read().await.contains(&addr.ip());
+            match zelf.create_verified_peer(&mut buffer, connection, is_priority).await {
                 Ok((peer, rx)) => {
                     if let Err(e) = zelf.peer_sender.send((peer, rx)).await {
                         error!("Error while sending new connection to listener: {}", e);

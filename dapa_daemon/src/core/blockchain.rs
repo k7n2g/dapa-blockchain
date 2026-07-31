@@ -1,6 +1,7 @@
 use anyhow::{Context, Error};
 use futures::{stream, TryStreamExt};
 use indexmap::IndexSet;
+use std::net::IpAddr;
 use metrics::{counter, gauge, histogram};
 use serde_json::{Value, json};
 use dapa_common::{
@@ -412,6 +413,12 @@ impl<S: Storage> Blockchain<S> {
                 None
             };
 
+            let priority_ips: Vec<IpAddr> = config.priority_nodes.iter()
+                .filter_map(|s| s.split(',').next())
+                .filter_map(|s| s.parse::<SocketAddr>().ok())
+                .map(|addr| addr.ip())
+                .collect();
+
             match P2pServer::new(
                 config.concurrency_task_count_limit,
                 dir_path,
@@ -440,6 +447,7 @@ impl<S: Storage> Blockchain<S> {
                 proxy,
                 config.sync_from_priority_only,
                 config.reorg_from_priority_only,
+                priority_ips,
             ) {
                 Ok(p2p) => {
                     *arc.p2p.write().await = Some(p2p.clone());
