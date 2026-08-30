@@ -307,7 +307,7 @@ const MAINNET_SEED_NODES: [&str; 3] = [
     // Germany
     "62.171.173.163:20100",
     //singapore
-    "194.163.189.149:20100"
+    "164.68.113.10:20100"
 ];
 
 // Testnet seed nodes

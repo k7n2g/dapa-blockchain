@@ -2480,6 +2480,13 @@ impl<S: Storage> Blockchain<S> {
                         debug!("Executing tx {} in block {} with nonce {}", tx_hash, hash, tx.get_nonce());
                         if let Err(e) = tx.apply_with_partial_verify(tx_hash, &mut chain_state).await {
                             error!("Error while executing TX {} with current DAG org: {}", tx_hash, e);
+                            // The nonce was already successfully consumed by use_nonce() above.
+                            // If execution now fails, that consumption must be rolled back, or
+                            // every subsequent, legitimate transaction from this same account
+                            // will be permanently, incorrectly rejected as a false "double
+                            // spend" for the rest of this daemon's runtime. This call was
+                            // previously missing entirely.
+                            nonce_checker.undo_nonce(tx.get_source(), tx.get_nonce());
                             // TX may be orphaned if not added again in good order in next blocks
                             orphaned_transactions.insert(tx_hash.clone());
                             continue;
