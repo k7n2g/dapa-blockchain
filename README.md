@@ -168,7 +168,7 @@ That is all. The node starts, connects to peers, and continues syncing from the 
 ### Connecting to a Specific Peer
 
 ```bash
-./dapa_daemon --add-peer 194.163.189.149:20100
+./dapa_daemon --add-peer 194.163.189.149:20100   "example shown"
 ```
 
 ### Firewall (UFW)
