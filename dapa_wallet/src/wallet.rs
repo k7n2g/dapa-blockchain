@@ -417,6 +417,8 @@ impl Wallet {
 
         // Flush the storage to be sure its written on disk
         storage.flush().await?;
+        // First backup straight away, so a brand-new wallet can always be recovered
+        storage.backup_if_due();
 
         Ok(Self::new(storage, keypair, network, precomputed_tables, n_threads, concurrency))
     }
@@ -428,7 +430,7 @@ impl Wallet {
         }
 
         debug!("Creating storage for {}", name);
-        let storage = Storage::new(name)?;
+        let storage = Storage::open_existing(name)?;
         
         // get password salt for KDF
         debug!("Retrieving password salt from public storage");

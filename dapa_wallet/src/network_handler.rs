@@ -1406,6 +1406,8 @@ impl NetworkHandler {
             storage.set_syncing(false);
             storage.flush().await?;
             debug!("Flushed storage");
+            // Keep a known-good copy for automatic recovery
+            storage.backup_if_due();
         }
 
         if broadcast_history_synced {

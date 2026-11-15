@@ -88,7 +88,13 @@ const DEFAULT_CACHE_SIZE: usize = 100;
 
 // Use this struct to get access to non-encrypted keys (such as salt for KDF and encrypted master key)
 pub struct Storage {
-    db: Db
+    db: Db,
+    // Path of the wallet database, used for backups (Android/desktop only)
+    #[cfg(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown")))]
+    name: String,
+    // When the last backup was made
+    #[cfg(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown")))]
+    last_backup: Option<std::time::Instant>,
 }
 
 // Implement an encrypted storage system
@@ -209,6 +215,11 @@ impl EncryptedStorage {
         trace!("Flushing storage");
         self.inner.db.flush_async().await?;
         Ok(())
+    }
+
+    // Keep a verified backup copy of the wallet database (at most every 10 minutes)
+    pub fn backup_if_due(&mut self) {
+        self.inner.backup_if_due();
     }
 
     // Await for the storage to be flushed
@@ -1013,8 +1024,21 @@ impl EncryptedStorage {
     pub fn get_last_outgoing_transaction(&self) -> Result<Option<TransactionEntry>> {
         trace!("get last transaction created");
         for el in self.transactions_indexes.iter().values().rev() {
-            let tx_hash = el?;
-            let entry: TransactionEntry = self.load_from_disk_with_key(&self.transactions, &tx_hash)?;
+            // Skip a damaged record instead of failing (see note in get_filtered_transactions)
+            let tx_hash = match el {
+                Ok(hash) => hash,
+                Err(e) => {
+                    log::warn!("Skipping unreadable transaction index entry: {}", e);
+                    continue;
+                }
+            };
+            let entry: TransactionEntry = match self.load_from_disk_with_key(&self.transactions, &tx_hash) {
+                Ok(entry) => entry,
+                Err(e) => {
+                    log::warn!("Skipping corrupted transaction record: {:#}", e);
+                    continue;
+                }
+            };
             if entry.is_outgoing() {
                 debug!("Found last outgoing transaction: {:?}", entry);
                 return Ok(Some(entry));
@@ -1244,8 +1268,22 @@ impl EncryptedStorage {
 
         let mut transactions = Vec::new();
         for el in iterator.skip(skip.unwrap_or(0)) {
-            let tx_key = el?;
-            let mut entry: TransactionEntry = self.load_from_disk_with_key(&self.transactions, &tx_key)?;
+            // A damaged record (e.g. left half-written when the app was killed mid-sync)
+            // is skipped instead of failing the whole history. Use rescan to rebuild it.
+            let tx_key = match el {
+                Ok(key) => key,
+                Err(e) => {
+                    log::warn!("Skipping unreadable transaction index entry: {}", e);
+                    continue;
+                }
+            };
+            let mut entry: TransactionEntry = match self.load_from_disk_with_key(&self.transactions, &tx_key) {
+                Ok(entry) => entry,
+                Err(e) => {
+                    log::warn!("Skipping corrupted transaction record: {:#}", e);
+                    continue;
+                }
+            };
             trace!("entry: {}", entry.get_hash());
 
             // We double check topoheight bounds here as well
@@ -1617,8 +1655,21 @@ impl EncryptedStorage {
         }
 
         for el in self.transactions_indexes.iter().values().rev() {
-            let tx_hash = el?;
-            let entry: TransactionEntry = self.load_from_disk_with_key(&self.transactions, &tx_hash)?;
+            // Skip a damaged record instead of failing (see note in get_filtered_transactions)
+            let tx_hash = match el {
+                Ok(hash) => hash,
+                Err(e) => {
+                    log::warn!("Skipping unreadable transaction index entry: {}", e);
+                    continue;
+                }
+            };
+            let entry: TransactionEntry = match self.load_from_disk_with_key(&self.transactions, &tx_hash) {
+                Ok(entry) => entry,
+                Err(e) => {
+                    log::warn!("Skipping corrupted transaction record: {:#}", e);
+                    continue;
+                }
+            };
             if entry.get_topoheight() < topoheight {
                 break;
             }
@@ -1808,9 +1859,53 @@ impl Storage {
         let db = backend::open(name)?;
 
         Ok(Self {
-            db
+            db,
+            #[cfg(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown")))]
+            name: name.to_string(),
+            #[cfg(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown")))]
+            last_backup: None,
         })
     }
+
+    // Open an existing wallet database. On Android/desktop, if it is damaged or its
+    // data is missing, the last verified backup is restored automatically.
+    pub fn open_existing(name: &str) -> Result<Self> {
+        #[cfg(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown")))]
+        let db = backend::open_checked(name, AsRef::<[u8]>::as_ref(&MASTER_KEY))?;
+        #[cfg(not(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown"))))]
+        let db = backend::open(name)?;
+
+        Ok(Self {
+            db,
+            #[cfg(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown")))]
+            name: name.to_string(),
+            #[cfg(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown")))]
+            last_backup: None,
+        })
+    }
+
+    // Keep a verified backup copy of the wallet database, at most every 10 minutes.
+    // A failed backup is logged and never stops the wallet.
+    #[cfg(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown")))]
+    pub fn backup_if_due(&mut self) {
+        let due = self.last_backup
+            .map(|t| t.elapsed() >= std::time::Duration::from_secs(600))
+            .unwrap_or(true);
+        if !due {
+            return;
+        }
+        match backend::backup(&self.db, &self.name) {
+            Ok(()) => {
+                self.last_backup = Some(std::time::Instant::now());
+                debug!("Wallet backup saved");
+            }
+            Err(e) => warn!("Wallet backup failed: {:#}", e),
+        }
+    }
+
+    // Browser storage has its own persistence: nothing to do
+    #[cfg(not(not(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown"))))]
+    pub fn backup_if_due(&mut self) {}
 
     // save the encrypted form of the master key
     // it can only be decrypted using the password-based key
