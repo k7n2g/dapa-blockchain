@@ -1013,8 +1013,21 @@ impl EncryptedStorage {
     pub fn get_last_outgoing_transaction(&self) -> Result<Option<TransactionEntry>> {
         trace!("get last transaction created");
         for el in self.transactions_indexes.iter().values().rev() {
-            let tx_hash = el?;
-            let entry: TransactionEntry = self.load_from_disk_with_key(&self.transactions, &tx_hash)?;
+            // Skip a damaged record instead of failing (see note in get_filtered_transactions)
+            let tx_hash = match el {
+                Ok(hash) => hash,
+                Err(e) => {
+                    log::warn!("Skipping unreadable transaction index entry: {}", e);
+                    continue;
+                }
+            };
+            let entry: TransactionEntry = match self.load_from_disk_with_key(&self.transactions, &tx_hash) {
+                Ok(entry) => entry,
+                Err(e) => {
+                    log::warn!("Skipping corrupted transaction record: {:#}", e);
+                    continue;
+                }
+            };
             if entry.is_outgoing() {
                 debug!("Found last outgoing transaction: {:?}", entry);
                 return Ok(Some(entry));
@@ -1244,8 +1257,22 @@ impl EncryptedStorage {
 
         let mut transactions = Vec::new();
         for el in iterator.skip(skip.unwrap_or(0)) {
-            let tx_key = el?;
-            let mut entry: TransactionEntry = self.load_from_disk_with_key(&self.transactions, &tx_key)?;
+            // A damaged record (e.g. left half-written when the app was killed mid-sync)
+            // is skipped instead of failing the whole history. Use rescan to rebuild it.
+            let tx_key = match el {
+                Ok(key) => key,
+                Err(e) => {
+                    log::warn!("Skipping unreadable transaction index entry: {}", e);
+                    continue;
+                }
+            };
+            let mut entry: TransactionEntry = match self.load_from_disk_with_key(&self.transactions, &tx_key) {
+                Ok(entry) => entry,
+                Err(e) => {
+                    log::warn!("Skipping corrupted transaction record: {:#}", e);
+                    continue;
+                }
+            };
             trace!("entry: {}", entry.get_hash());
 
             // We double check topoheight bounds here as well
@@ -1617,8 +1644,21 @@ impl EncryptedStorage {
         }
 
         for el in self.transactions_indexes.iter().values().rev() {
-            let tx_hash = el?;
-            let entry: TransactionEntry = self.load_from_disk_with_key(&self.transactions, &tx_hash)?;
+            // Skip a damaged record instead of failing (see note in get_filtered_transactions)
+            let tx_hash = match el {
+                Ok(hash) => hash,
+                Err(e) => {
+                    log::warn!("Skipping unreadable transaction index entry: {}", e);
+                    continue;
+                }
+            };
+            let entry: TransactionEntry = match self.load_from_disk_with_key(&self.transactions, &tx_hash) {
+                Ok(entry) => entry,
+                Err(e) => {
+                    log::warn!("Skipping corrupted transaction record: {:#}", e);
+                    continue;
+                }
+            };
             if entry.get_topoheight() < topoheight {
                 break;
             }
