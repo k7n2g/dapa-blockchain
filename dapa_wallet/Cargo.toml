@@ -40,7 +40,7 @@ tokio-tungstenite-wasm = { workspace = true, optional = true }
 
 # WASM dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-web-sys = { version = "0.3.69", features = ["Window", "Storage", "File", "StorageManager", "FileSystemGetFileOptions", "Navigator", "FileSystemFileHandle", "FileSystemDirectoryHandle", "FileSystemWritableFileStream", "FileSystemSyncAccessHandle"] }
+web-sys = { version = "0.3.69", features = ["Window", "Storage", "File", "StorageManager", "FileSystemGetFileOptions", "Navigator", "FileSystemFileHandle", "FileSystemDirectoryHandle", "FileSystemWritableFileStream", "FileSystemSyncAccessHandle", "Request", "RequestInit", "RequestMode", "Response", "Headers"] }
 base64 = "0.22.1"
 wasm-bindgen-futures = "0.4.43"
 

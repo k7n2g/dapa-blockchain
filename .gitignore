@@ -22,3 +22,7 @@ mainnet*
 testnet*
 stagenet*
 devnet*
+# web wallet WASM build output
+dapa_crypto_wasm/target/
+dapa_crypto_wasm/pkg/
+dapa_crypto_wasm/
